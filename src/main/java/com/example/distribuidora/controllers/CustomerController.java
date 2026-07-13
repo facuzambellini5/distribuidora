@@ -29,6 +29,11 @@ public class CustomerController {
         return ResponseEntity.ok(customerService.getCustomer(id));
     }
 
+    @GetMapping("/get/active")
+    public ResponseEntity<?> getActiveCustomers() {
+        return ResponseEntity.ok(customerService.getActiveCustomers());
+    }
+
     @PutMapping("/update/{id}")
     public ResponseEntity<?> updateCustomer(@PathVariable Long id,
                                             @RequestBody CustomerDto customerDto) {
@@ -39,6 +44,12 @@ public class CustomerController {
     @PatchMapping("/desactivate/{id}")
     public ResponseEntity<?> desactivateCustomer(@PathVariable Long id) {
         customerService.desactivateCustomer(id);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    @PatchMapping("/activate/{id}")
+    public ResponseEntity<?> activateCustomer(@PathVariable Long id) {
+        customerService.activateCustomer(id);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 

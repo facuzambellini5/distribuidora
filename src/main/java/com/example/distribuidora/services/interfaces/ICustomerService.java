@@ -9,9 +9,11 @@ public interface ICustomerService {
 
     //Contrato de CRUD
     Customer saveCustomer(CustomerDto customerDto);
-    List<CustomerDto> getCustomers();
+    List<Customer> getCustomers();
     Customer getCustomer(Long id);
+    List<Customer> getActiveCustomers();
     CustomerDto updateCustomer(Long id, CustomerDto customerDto);
     void desactivateCustomer(Long id);
+    void activateCustomer(Long id);
     void deleteCustomer(Long id);
 }
