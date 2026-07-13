@@ -14,7 +14,7 @@ import java.util.List;
 public class CustomerService implements ICustomerService {
 
     @Autowired
-    private ICustomerRepository  customerRepo;
+    private ICustomerRepository customerRepo;
 
     @Override
     public Customer saveCustomer(CustomerDto customerDto){
@@ -30,18 +30,19 @@ public class CustomerService implements ICustomerService {
     }
 
     @Override
-    public List<CustomerDto> getCustomers() {
-        return customerRepo.findAll()
-                .stream()
-                .filter(Customer::isActive) //Filtra solo los clientes activos
-                .map(CustomerDto::new) //Convierte Customer a CustomerDto a traves del constructor definido
-                .toList();
+    public List<Customer> getCustomers() {
+        return customerRepo.findAll();
     }
 
     @Override
     public Customer getCustomer(Long id) {
         //Lanza exception si no se encuentra
         return customerRepo.findById(id).orElseThrow(() -> new EntityNotFoundException("Customer", id));
+    }
+
+    @Override
+    public List<Customer> getActiveCustomers() {
+        return customerRepo.findByActiveTrue();
     }
 
 
@@ -66,6 +67,14 @@ public class CustomerService implements ICustomerService {
         Customer customer = this.getCustomer(id);
 
         customer.setActive(false);
+        customerRepo.save(customer);
+    }
+
+    @Override
+    public void activateCustomer(Long id) {
+        Customer customer = this.getCustomer(id);
+
+        customer.setActive(true);
         customerRepo.save(customer);
     }
 
