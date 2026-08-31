@@ -95,10 +95,6 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         ;
 
-
-        //TODO VER
-        //.formLogin(Customizer.withDefaults());
-
         return http.build();
     }
 }
