@@ -23,6 +23,9 @@ public class Category {
 
     private String name;
 
+    @Column(name = "is_active")
+    private boolean isActive = true;
+
     @ManyToOne
     @JoinColumn(name = "parent_category_id")
     private Category parentCategory;
