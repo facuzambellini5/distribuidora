@@ -12,7 +12,9 @@ public record CategoryResponse(
         this(
                 category.getId(),
                 category.getName(),
-                category.getParentCategory().getId()
+                category.getParentCategory() == null
+                        ? null
+                        : category.getParentCategory().getId()
         );
     }
 }

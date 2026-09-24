@@ -18,20 +18,24 @@ public class CategoryService {
 
     public CategoryResponse save(CategoryRequest categoryRequest){
 
+        if (categoryRequest == null) {
+            throw new IllegalArgumentException("CategoryRequest can´t be null");
+        }
+
         Category category = new Category();
         category.setName(categoryRequest.name());
 
-        //TODO VER SI DEJAR ESTO O HACER REFACTOR
-        //Buscar parentCategory si está especificado
-        if (categoryRequest.parentCategoryId() != null) {
-
-            Category parentCategory = categoryRepo.findById(categoryRequest.parentCategoryId()).orElseThrow(() -> new EntityNotFoundException("Category", categoryRequest.parentCategoryId()));
+        Long parentId = categoryRequest.parentCategoryId();
+        if (parentId != null) {
+            Category parentCategory = categoryRepo.findById(parentId)
+                    .orElseThrow(() -> new EntityNotFoundException("Category", parentId));
             category.setParentCategory(parentCategory);
         } else {
             category.setParentCategory(null);
         }
 
-        return new CategoryResponse(categoryRepo.save(category));
+        Category saved = categoryRepo.save(category);
+        return new CategoryResponse(saved);
     }
 
     //TODO VER CÓMO DEVOLVER LAS CATEGORÍAS: ES DECIR, VER SI DEVOLVER TODAS O DE MANERA MÁS ORDENADA LAS CATEGORÍAS HIJAS CON LAS PADRES
@@ -48,19 +52,25 @@ public class CategoryService {
 
     public CategoryResponse update(Long id, CategoryRequest categoryRequest) {
 
-        Category category = categoryRepo.findById(id).orElseThrow(() -> new EntityNotFoundException("Category", id));
+        if (categoryRequest == null) {
+            throw new IllegalArgumentException("CategoryRequest can´t be null");
+        }
+
+        Category category = categoryRepo.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Category", id));
         category.setName(categoryRequest.name());
 
-        //TODO VER SI DEJAR ESTO O HACER REFACTOR
-        //Buscar parentCategory si está especificado
-        if (categoryRequest.parentCategoryId() != null) {
-            Category parentCategory = categoryRepo.findById(categoryRequest.parentCategoryId()).orElseThrow(() -> new EntityNotFoundException("Category", categoryRequest.parentCategoryId()));
+        Long parentId = categoryRequest.parentCategoryId();
+        if (parentId != null) {
+            Category parentCategory = categoryRepo.findById(parentId)
+                    .orElseThrow(() -> new EntityNotFoundException("Category", parentId));
             category.setParentCategory(parentCategory);
         } else {
             category.setParentCategory(null);
         }
 
-        return new CategoryResponse(categoryRepo.save(category));
+        Category saved = categoryRepo.save(category);
+        return new CategoryResponse(saved);
     }
 
     public void desactivate(Long id) {
@@ -79,6 +89,4 @@ public class CategoryService {
         Category category = categoryRepo.findById(id).orElseThrow(() -> new EntityNotFoundException("Category", id));
         categoryRepo.delete(category);
     }
-
-
 }

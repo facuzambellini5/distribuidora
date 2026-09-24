@@ -4,20 +4,18 @@ import com.example.distribuidora.dtos.CustomerDto;
 import com.example.distribuidora.exceptions.EntityNotFoundException;
 import com.example.distribuidora.models.Customer;
 import com.example.distribuidora.repositories.ICustomerRepository;
-import com.example.distribuidora.services.interfaces.ICustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
-public class CustomerService implements ICustomerService {
+public class CustomerService{
 
     @Autowired
     private ICustomerRepository customerRepo;
 
     //TODO AGREGAR GUARDAR DIRECCIÓN
-    @Override
     public Customer saveCustomer(CustomerDto customerDto){
 
         Customer customer = new Customer();
@@ -30,24 +28,20 @@ public class CustomerService implements ICustomerService {
         return customerRepo.save(customer);
     }
 
-    @Override
     public List<Customer> getCustomers() {
         return customerRepo.findAll();
     }
 
-    @Override
     public Customer getCustomer(Long id) {
         //Lanza exception si no se encuentra
         return customerRepo.findById(id).orElseThrow(() -> new EntityNotFoundException("Customer", id));
     }
 
-    @Override
     public List<Customer> getActiveCustomers() {
         return customerRepo.findByActiveTrue();
     }
 
 
-    @Override
     public CustomerDto updateCustomer(Long id, CustomerDto customerDto) {
 
         //Obtener Customer desde el metodo getCustomer (en donde se lanza exception si no se encuentra)
@@ -63,7 +57,6 @@ public class CustomerService implements ICustomerService {
         return new CustomerDto(customerRepo.save(customer));
     }
 
-    @Override
     public void desactivateCustomer(Long id) {
         Customer customer = this.getCustomer(id);
 
@@ -71,7 +64,6 @@ public class CustomerService implements ICustomerService {
         customerRepo.save(customer);
     }
 
-    @Override
     public void activateCustomer(Long id) {
         Customer customer = this.getCustomer(id);
 
@@ -79,7 +71,6 @@ public class CustomerService implements ICustomerService {
         customerRepo.save(customer);
     }
 
-    @Override
     public void deleteCustomer(Long id) {
         customerRepo.deleteById(id);
     }
