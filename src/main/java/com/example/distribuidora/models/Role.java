@@ -13,10 +13,10 @@ public class Role {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    private Long id;
 
     @Column(nullable = false, unique = true, length = 30)
-    String name;
+    private String name;
 
     // EAGER a propósito: los permisos de un rol se necesitan en CADA
     // request autenticado para armar las authorities de Spring Security.

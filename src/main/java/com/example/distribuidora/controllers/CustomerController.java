@@ -1,7 +1,7 @@
 package com.example.distribuidora.controllers;
 
 import com.example.distribuidora.dtos.CustomerDto;
-import com.example.distribuidora.services.interfaces.ICustomerService;
+import com.example.distribuidora.services.CustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 public class CustomerController {
 
     @Autowired
-    private ICustomerService customerService;
+    private CustomerService customerService;
 
     @PostMapping("/save")
     public ResponseEntity<?> saveCustomer(@RequestBody CustomerDto customerDto) {
