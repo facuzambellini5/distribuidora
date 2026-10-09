@@ -2,6 +2,7 @@ package com.example.distribuidora.enums;
 
 public enum OrderStatus {
     PENDING,
-    COMPLETED,
+    IN_ROUTE,
+    DELIVERED,
     CANCELLED
 }

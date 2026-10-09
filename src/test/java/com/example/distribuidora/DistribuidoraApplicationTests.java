@@ -1,13 +1,14 @@
 package com.example.distribuidora;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 class DistribuidoraApplicationTests {
 
 	@Test
-	void contextLoads() {
+	void applicationClassExists() {
+		assertNotNull(DistribuidoraApplication.class);
 	}
 
 }

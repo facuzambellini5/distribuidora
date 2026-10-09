@@ -1,43 +1,50 @@
 package com.example.distribuidora.models;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "customers")
-@Data
+@Getter
+@Setter
 public class Customer {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    private Long id;
 
     @Column(name = "business_name", nullable = false)
-    String businessName;
+    private String businessName;
 
     @Column(name = "tax_id")
-    String taxId;
+    private String taxId;
 
     @Column(name = "name")
-    String name;
+    private String name;
 
-    String phone;
+    private String phone;
 
     @Column(name = "email")
-    String email;
+    private String email;
 
     @Column(name = "is_active")
-    boolean isActive = true;
+    private boolean isActive = true;
 
     @Column(name = "created_at")
     @CreationTimestamp
-    LocalDateTime createdAt;
+    private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     @UpdateTimestamp
-    LocalDateTime updatedAt;
+    private LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Address> addresses = new ArrayList<>();
 }

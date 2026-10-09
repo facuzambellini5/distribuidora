@@ -2,91 +2,92 @@ package com.example.distribuidora.services;
 
 import com.example.distribuidora.dtos.CategoryRequest;
 import com.example.distribuidora.dtos.CategoryResponse;
+import com.example.distribuidora.exceptions.BusinessRuleException;
 import com.example.distribuidora.exceptions.EntityNotFoundException;
 import com.example.distribuidora.models.Category;
 import com.example.distribuidora.repositories.ICategoryRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
 public class CategoryService {
 
-    @Autowired
-    private ICategoryRepository categoryRepo;
+    private final ICategoryRepository categoryRepo;
 
-    public CategoryResponse save(CategoryRequest categoryRequest){
+    public CategoryService(ICategoryRepository categoryRepo) {
+        this.categoryRepo = categoryRepo;
+    }
 
-        if (categoryRequest == null) {
-            throw new IllegalArgumentException("CategoryRequest can´t be null");
-        }
+    @Transactional
+    public CategoryResponse save(CategoryRequest categoryRequest) {
 
         Category category = new Category();
         category.setName(categoryRequest.name());
-
-        Long parentId = categoryRequest.parentCategoryId();
-        if (parentId != null) {
-            Category parentCategory = categoryRepo.findById(parentId)
-                    .orElseThrow(() -> new EntityNotFoundException("Category", parentId));
-            category.setParentCategory(parentCategory);
-        } else {
-            category.setParentCategory(null);
-        }
+        category.setParentCategory(resolveParent(categoryRequest.parentCategoryId(), null));
 
         Category saved = categoryRepo.save(category);
         return new CategoryResponse(saved);
     }
 
-    //TODO VER CÓMO DEVOLVER LAS CATEGORÍAS: ES DECIR, VER SI DEVOLVER TODAS O DE MANERA MÁS ORDENADA LAS CATEGORÍAS HIJAS CON LAS PADRES
-    public List<CategoryResponse> getCategories() {
-        return categoryRepo.findAll()
+    @Transactional(readOnly = true)
+    public List<CategoryResponse> getCategories(Boolean active) {
+        List<Category> categories = Boolean.TRUE.equals(active) ? categoryRepo.findByActiveTrue() : categoryRepo.findAll();
+        return categories
                 .stream()
                 .map(CategoryResponse::new)
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public CategoryResponse getCategoryById(Long id) {
-        return categoryRepo.findById(id).map(CategoryResponse::new).orElseThrow(() -> new EntityNotFoundException("Category", id));
+        return new CategoryResponse(getCategoryEntity(id));
     }
 
+    @Transactional(readOnly = true)
+    public Category getCategoryEntity(Long id) {
+        return categoryRepo.findById(id).orElseThrow(() -> new EntityNotFoundException("Category", id));
+    }
+
+    @Transactional
     public CategoryResponse update(Long id, CategoryRequest categoryRequest) {
-
-        if (categoryRequest == null) {
-            throw new IllegalArgumentException("CategoryRequest can´t be null");
-        }
-
-        Category category = categoryRepo.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Category", id));
+        Category category = getCategoryEntity(id);
         category.setName(categoryRequest.name());
-
-        Long parentId = categoryRequest.parentCategoryId();
-        if (parentId != null) {
-            Category parentCategory = categoryRepo.findById(parentId)
-                    .orElseThrow(() -> new EntityNotFoundException("Category", parentId));
-            category.setParentCategory(parentCategory);
-        } else {
-            category.setParentCategory(null);
-        }
+        category.setParentCategory(resolveParent(categoryRequest.parentCategoryId(), id));
 
         Category saved = categoryRepo.save(category);
         return new CategoryResponse(saved);
     }
 
+    @Transactional
     public void desactivate(Long id) {
-        Category category = categoryRepo.findById(id).orElseThrow(() -> new EntityNotFoundException("Category", id));
+        Category category = getCategoryEntity(id);
         category.setActive(false);
         categoryRepo.save(category);
     }
 
+    @Transactional
     public void activate(Long id) {
-        Category category = categoryRepo.findById(id).orElseThrow(() -> new EntityNotFoundException("Category", id));
+        Category category = getCategoryEntity(id);
         category.setActive(true);
         categoryRepo.save(category);
     }
 
+    @Transactional
     public void delete(Long id) {
-        Category category = categoryRepo.findById(id).orElseThrow(() -> new EntityNotFoundException("Category", id));
-        categoryRepo.delete(category);
+        desactivate(id);
+    }
+
+    private Category resolveParent(Long parentId, Long currentId) {
+        if (parentId == null) return null;
+        if (parentId.equals(currentId)) {
+            throw new BusinessRuleException("A category cannot be its own parent.");
+        }
+        Category parent = getCategoryEntity(parentId);
+        if (parent.getParentCategory() != null) {
+            throw new BusinessRuleException("Categories support at most two hierarchy levels.");
+        }
+        return parent;
     }
 }
