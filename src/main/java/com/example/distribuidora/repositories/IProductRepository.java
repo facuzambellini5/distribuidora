@@ -11,7 +11,9 @@ public interface IProductRepository extends JpaRepository<Product, Long> {
 
     List<Product> findByActiveTrue();
 
-    List<Product> findByCategory(Long categoryId);
+    List<Product> findByCategoryId(Long categoryId);
 
     boolean existsBySku(String sku);
+
+    boolean existsBySkuAndIdNot(String sku, Long id);
 }

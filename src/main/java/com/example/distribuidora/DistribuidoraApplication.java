@@ -9,5 +9,4 @@ public class DistribuidoraApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(DistribuidoraApplication.class, args);
 	}
-
 }

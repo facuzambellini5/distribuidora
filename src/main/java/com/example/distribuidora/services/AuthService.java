@@ -5,7 +5,6 @@ import com.example.distribuidora.dtos.LoginResponse;
 import com.example.distribuidora.models.User;
 import com.example.distribuidora.repositories.IUserRepository;
 import com.example.distribuidora.security.JwtService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
@@ -14,13 +13,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthService {
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
-    @Autowired
-    private  IUserRepository userRepo;
-    @Autowired
-    private JwtService jwtService;
+    private final AuthenticationManager authenticationManager;
+    private final IUserRepository userRepo;
+    private final JwtService jwtService;
 
+    public AuthService(AuthenticationManager authenticationManager, IUserRepository userRepo, JwtService jwtService) {
+        this.authenticationManager = authenticationManager;
+        this.userRepo = userRepo;
+        this.jwtService = jwtService;
+    }
 
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {

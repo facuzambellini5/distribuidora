@@ -10,4 +10,12 @@ import java.util.List;
 public interface ICustomerRepository extends JpaRepository<Customer, Long> {
 
     List<Customer> findByActiveTrue();
+
+    boolean existsByEmail(String email);
+
+    boolean existsByEmailAndIdNot(String email, Long id);
+
+    boolean existsByTaxId(String taxId);
+
+    boolean existsByTaxIdAndIdNot(String taxId, Long id);
 }
