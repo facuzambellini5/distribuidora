@@ -4,6 +4,7 @@ import com.example.distribuidora.enums.OrderStatus;
 import com.example.distribuidora.models.Order;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -12,6 +13,7 @@ public record OrderResponse(
         Long customerId,
         String customerBusinessName,
         Long truckId,
+        LocalDate deliveryDate,
         OrderStatus status,
         String deliveryAddressSnapshot,
         BigDecimal deliveryLatitude,
@@ -28,6 +30,7 @@ public record OrderResponse(
                 order.getCustomer().getId(),
                 order.getCustomer().getBusinessName(),
                 order.getTruckId(),
+                order.getDeliveryDate(),
                 order.getStatus(),
                 order.getDeliveryAddressSnapshot(),
                 order.getDeliveryLatitude(),

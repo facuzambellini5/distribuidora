@@ -69,6 +69,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
 
                         //DOCUMENTACIÓN DE API
@@ -76,6 +77,17 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-resources/**",
                                 "/webjars/**").permitAll()
+
+                        // TODO esto es temporal
+//                        .requestMatchers("/api/users/**").permitAll()
+//                        .requestMatchers("/api/customers/**").permitAll()
+//                        .requestMatchers("/api/addresses/**").permitAll()
+//                        .requestMatchers("/api/ledgers/**").permitAll()
+//                        .requestMatchers("/api/products/**").permitAll()
+//                        .requestMatchers("/api/orders/**").permitAll()
+//                        .requestMatchers("/api/order-items/**").permitAll()
+//                        .requestMatchers("/api/roles/**").permitAll()
+//                        .requestMatchers("/api/permissions/**").permitAll()
 
                         .anyRequest().authenticated()
                 )
