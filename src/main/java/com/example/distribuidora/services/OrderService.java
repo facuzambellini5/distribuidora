@@ -51,15 +51,17 @@ public class OrderService {
 
         Order order = new Order();
         order.setCustomer(customer);
+        order.setDeliveryAddress(address);
         order.setTruckId(request.truckId());
         order.setDeliveryDate(resolveDeliveryDate(request.deliveryDate()));
         order.setStatus(OrderStatus.PENDING);
         order.setCreatedBy(resolveUser(request.createdById()));
-        applyAddressSnapshot(order, address);
-        deliveryStockService.validateStockForOrder(order.getTruckId(), order.getDeliveryDate(), request.items(), null);
         applyItems(order, request.items());
 
-        return new OrderResponse(orderRepo.save(order));
+        Order saved = orderRepo.save(order);
+        // El camion arranca en cero: al asignarlo, el pedido carga sus productos en el camion.
+        deliveryStockService.registerLoadForOrder(saved);
+        return new OrderResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -90,22 +92,23 @@ public class OrderService {
         Address address = addressService.getAddressEntity(customer.getId(), request.deliveryAddressId());
 
         order.setCustomer(customer);
+        order.setDeliveryAddress(address);
         order.setTruckId(request.truckId());
         order.setDeliveryDate(resolveDeliveryDate(request.deliveryDate()));
         order.setCreatedBy(resolveUser(request.createdById()));
-        applyAddressSnapshot(order, address);
         order.getItems().clear();
-        deliveryStockService.validateStockForOrder(order.getTruckId(), order.getDeliveryDate(), request.items(), order.getId());
         applyItems(order, request.items());
 
-        return new OrderResponse(orderRepo.save(order));
+        Order saved = orderRepo.save(order);
+        // Revierte la carga anterior (otro camion, fecha o items) y aplica la nueva; truckId null = desasignado.
+        deliveryStockService.syncLoadForOrder(saved);
+        return new OrderResponse(saved);
     }
 
     @Transactional
     public OrderResponse markInRoute(Long id) {
         Order order = getOrderEntity(id);
         requireStatus(order, OrderStatus.PENDING, "Only pending orders can be marked in route.");
-        deliveryStockService.validateStockForOrder(order.getTruckId(), order.getDeliveryDate(), toItemRequests(order), order.getId());
         order.setStatus(OrderStatus.IN_ROUTE);
         return new OrderResponse(orderRepo.save(order));
     }
@@ -119,7 +122,7 @@ public class OrderService {
         if (order.getStatus() == OrderStatus.CANCELLED) {
             throw new BusinessRuleException("Cancelled orders cannot be delivered.");
         }
-        deliveryStockService.validateStockForOrder(order.getTruckId(), order.getDeliveryDate(), toItemRequests(order), order.getId());
+        // La carga ya se registro al asignar el pedido; al entregar esas unidades quedan como entregadas (no se revierten).
         order.setStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now());
         Order saved = orderRepo.save(order);
@@ -133,8 +136,13 @@ public class OrderService {
         if (order.getStatus() == OrderStatus.DELIVERED) {
             throw new BusinessRuleException("Delivered orders cannot be cancelled.");
         }
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            return new OrderResponse(order); // ya cancelado: la reversion no se repite
+        }
         order.setStatus(OrderStatus.CANCELLED);
-        return new OrderResponse(orderRepo.save(order));
+        Order saved = orderRepo.save(order);
+        deliveryStockService.revertLoadForOrder(saved.getId());
+        return new OrderResponse(saved);
     }
 
     @Transactional
@@ -163,16 +171,6 @@ public class OrderService {
         order.setTotalAmount(total);
     }
 
-    private void applyAddressSnapshot(Order order, Address address) {
-        String snapshot = "%s%s%s".formatted(
-                address.getLabel() == null || address.getLabel().isBlank() ? "" : address.getLabel() + " - ",
-                address.getStreetAddress(),
-                address.getCity() == null || address.getCity().isBlank() ? "" : ", " + address.getCity()
-        );
-        order.setDeliveryAddressSnapshot(snapshot);
-        order.setDeliveryLatitude(address.getLatitude());
-        order.setDeliveryLongitude(address.getLongitude());
-    }
 
     private User resolveUser(Long userId) {
         if (userId == null) return null;
@@ -181,12 +179,6 @@ public class OrderService {
 
     private LocalDate resolveDeliveryDate(LocalDate deliveryDate) {
         return deliveryDate != null ? deliveryDate : LocalDate.now();
-    }
-
-    private List<OrderItemRequest> toItemRequests(Order order) {
-        return order.getItems().stream()
-                .map(item -> new OrderItemRequest(item.getProduct().getId(), item.getQuantity()))
-                .toList();
     }
 
     private void requireStatus(Order order, OrderStatus status, String message) {

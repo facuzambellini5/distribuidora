@@ -1,6 +1,7 @@
 package com.example.distribuidora.repositories;
 
 import com.example.distribuidora.enums.OrderStatus;
+import com.example.distribuidora.models.Address;
 import com.example.distribuidora.models.Customer;
 import com.example.distribuidora.models.Order;
 import org.junit.jupiter.api.Test;
@@ -32,10 +33,14 @@ class JpaMappingTest {
     }
 
     private final ICustomerRepository customerRepo;
+    private final IAddressRepository addressRepo;
     private final IOrderRepository orderRepo;
 
-    JpaMappingTest(ICustomerRepository customerRepo, IOrderRepository orderRepo) {
+    JpaMappingTest(ICustomerRepository customerRepo,
+                   IAddressRepository addressRepo,
+                   IOrderRepository orderRepo) {
         this.customerRepo = customerRepo;
+        this.addressRepo = addressRepo;
         this.orderRepo = orderRepo;
     }
 
@@ -45,11 +50,16 @@ class JpaMappingTest {
         customer.setBusinessName("Cafe Centro");
         Customer savedCustomer = customerRepo.save(customer);
 
+        Address address = new Address();
+        address.setCustomer(savedCustomer);
+        address.setStreetAddress("San Martin 100");
+        Address savedAddress = addressRepo.save(address);
+
         Order order = new Order();
         order.setCustomer(savedCustomer);
+        order.setDeliveryAddress(savedAddress);
         order.setDeliveryDate(LocalDate.of(2026, 10, 13));
         order.setStatus(OrderStatus.PENDING);
-        order.setDeliveryAddressSnapshot("San Martin 100");
         order.setTotalAmount(new BigDecimal("10.00"));
 
         Order saved = orderRepo.save(order);
