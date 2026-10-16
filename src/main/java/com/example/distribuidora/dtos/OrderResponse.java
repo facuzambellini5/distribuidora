@@ -1,6 +1,7 @@
 package com.example.distribuidora.dtos;
 
 import com.example.distribuidora.enums.OrderStatus;
+import com.example.distribuidora.models.Address;
 import com.example.distribuidora.models.Order;
 
 import java.math.BigDecimal;
@@ -16,6 +17,7 @@ public record OrderResponse(
         LocalDate deliveryDate,
         OrderStatus status,
         String deliveryAddressSnapshot,
+        Long addressId,
         BigDecimal deliveryLatitude,
         BigDecimal deliveryLongitude,
         BigDecimal totalAmount,
@@ -27,19 +29,27 @@ public record OrderResponse(
     public OrderResponse(Order order) {
         this(
                 order.getId(),
-                order.getCustomer().getId(),
-                order.getCustomer().getBusinessName(),
+                order.getCustomer() == null ? null : order.getCustomer().getId(),
+                order.getCustomer() == null ? null : order.getCustomer().getBusinessName(),
                 order.getTruckId(),
                 order.getDeliveryDate(),
                 order.getStatus(),
-                order.getDeliveryAddressSnapshot(),
-                order.getDeliveryLatitude(),
-                order.getDeliveryLongitude(),
+                order.getDeliveryAddress() == null ? null : buildAddressSnapshot(order.getDeliveryAddress()),
+                order.getDeliveryAddress() == null ? null : order.getDeliveryAddress().getId(),
+                order.getDeliveryAddress() == null ? null : order.getDeliveryAddress().getLatitude(),
+                order.getDeliveryAddress() == null ? null : order.getDeliveryAddress().getLongitude(),
                 order.getTotalAmount(),
                 order.getCreatedBy() == null ? null : order.getCreatedBy().getId(),
                 order.getCreatedAt(),
                 order.getDeliveredAt(),
-                order.getItems().stream().map(OrderItemResponse::new).toList()
+                order.getItems() == null ? List.of() : order.getItems().stream().map(OrderItemResponse::new).toList()
         );
+    }
+
+    private static String buildAddressSnapshot(Address address) {
+        String label = address.getLabel() == null || address.getLabel().isBlank() ? "" : address.getLabel() + " - ";
+        String street = address.getStreetAddress() == null ? "" : address.getStreetAddress();
+        String city = address.getCity() == null || address.getCity().isBlank() ? "" : ", " + address.getCity();
+        return label + street + city;
     }
 }

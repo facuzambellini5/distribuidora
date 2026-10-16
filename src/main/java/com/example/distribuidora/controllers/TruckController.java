@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 //TODO VER SI ESTANDARIZAR LOS PATHS DE LOS ENDPOINTS
+//TODO VER SI AGREGAR PERMISSIONS para VENDEDOR
 @RestController
 @RequestMapping({"/api/trucks", "/api/truck"})
 public class TruckController {
@@ -33,6 +34,7 @@ public class TruckController {
     public ResponseEntity<?> save(@Valid @RequestBody TruckRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(truckService.save(request));
     }
+
 
     @GetMapping({"", "/get"})
     @PreAuthorize("hasAuthority('trucks:read')")

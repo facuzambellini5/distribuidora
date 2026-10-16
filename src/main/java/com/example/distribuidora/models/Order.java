@@ -30,6 +30,10 @@ public class Order {
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_address_id", nullable = false)
+    private Address deliveryAddress;
+
     @Column(name = "truck_id")
     private Long truckId;
 
@@ -39,15 +43,6 @@ public class Order {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private OrderStatus status = OrderStatus.PENDING;
-
-    @Column(name = "delivery_address_snapshot", nullable = false, columnDefinition = "TEXT")
-    private String deliveryAddressSnapshot;
-
-    @Column(name = "delivery_latitude", precision = 10, scale = 7)
-    private BigDecimal deliveryLatitude;
-
-    @Column(name = "delivery_longitude", precision = 10, scale = 7)
-    private BigDecimal deliveryLongitude;
 
     @Column(name = "total_amount", nullable = false)
     private BigDecimal totalAmount = BigDecimal.ZERO;
