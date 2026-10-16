@@ -42,6 +42,13 @@ public class LedgerService {
     }
 
     @Transactional
+    public void registerOrderPayment(Order order, BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) == 0) return;
+        requirePositive(amount, "Payment amount must be greater than zero.");
+        saveEntry(order.getCustomer(), order, LedgerEntryType.PAYMENT, amount.negate());
+    }
+
+    @Transactional
     public LedgerEntryResponse registerAdjustment(Long customerId, LedgerEntryRequest request) {
         Customer customer = customerService.getCustomerEntity(customerId);
         if (BigDecimal.ZERO.compareTo(request.amount()) == 0) {

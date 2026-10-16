@@ -1,6 +1,7 @@
 package com.example.distribuidora.dtos;
 
 import com.example.distribuidora.enums.OrderStatus;
+import com.example.distribuidora.enums.OrderPaymentMethod;
 import com.example.distribuidora.models.Address;
 import com.example.distribuidora.models.Order;
 
@@ -24,6 +25,9 @@ public record OrderResponse(
         Long createdById,
         LocalDateTime createdAt,
         LocalDateTime deliveredAt,
+        OrderPaymentMethod paymentMethod,
+        BigDecimal cashAmount,
+        BigDecimal transferAmount,
         List<OrderItemResponse> items
 ) {
     public OrderResponse(Order order) {
@@ -42,6 +46,9 @@ public record OrderResponse(
                 order.getCreatedBy() == null ? null : order.getCreatedBy().getId(),
                 order.getCreatedAt(),
                 order.getDeliveredAt(),
+                order.getPaymentMethod(),
+                order.getCashAmount(),
+                order.getTransferAmount(),
                 order.getItems() == null ? List.of() : order.getItems().stream().map(OrderItemResponse::new).toList()
         );
     }
