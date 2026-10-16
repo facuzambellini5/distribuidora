@@ -9,6 +9,7 @@ import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +32,9 @@ public class Order {
 
     @Column(name = "truck_id")
     private Long truckId;
+
+    @Column(name = "delivery_date", nullable = false)
+    private LocalDate deliveryDate;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

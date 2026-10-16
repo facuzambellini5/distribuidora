@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,6 +38,8 @@ class OrderServiceTest {
     private IUserRepository userRepo;
     @Mock
     private LedgerService ledgerService;
+    @Mock
+    private DeliveryStockService deliveryStockService;
 
     @InjectMocks
     private OrderService orderService;
@@ -62,12 +65,14 @@ class OrderServiceTest {
         when(productService.getProductEntity(3L)).thenReturn(product);
         when(orderRepo.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        orderService.create(new OrderRequest(1L, 2L, null, null, List.of(new OrderItemRequest(3L, 2))));
+        LocalDate deliveryDate = LocalDate.of(2026, 10, 13);
+        orderService.create(new OrderRequest(1L, 2L, null, deliveryDate, null, List.of(new OrderItemRequest(3L, 2))));
 
         ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
         verify(orderRepo).save(captor.capture());
         Order saved = captor.getValue();
         assertEquals(OrderStatus.PENDING, saved.getStatus());
+        assertEquals(deliveryDate, saved.getDeliveryDate());
         assertEquals(new BigDecimal("31.00"), saved.getTotalAmount());
         assertEquals("Av Siempre Viva 123", saved.getDeliveryAddressSnapshot());
         assertEquals(new BigDecimal("31.00"), saved.getItems().getFirst().getSubtotal());
@@ -80,6 +85,7 @@ class OrderServiceTest {
         Order order = new Order();
         order.setId(5L);
         order.setCustomer(customer);
+        order.setDeliveryDate(LocalDate.of(2026, 10, 13));
         order.setStatus(OrderStatus.IN_ROUTE);
         order.setTotalAmount(new BigDecimal("42.00"));
 
@@ -88,6 +94,7 @@ class OrderServiceTest {
 
         orderService.markDelivered(5L);
 
+        verify(deliveryStockService).validateStockForOrder(null, LocalDate.of(2026, 10, 13), List.of(), 5L);
         verify(ledgerService).registerCharge(customer, order, new BigDecimal("42.00"));
     }
 }

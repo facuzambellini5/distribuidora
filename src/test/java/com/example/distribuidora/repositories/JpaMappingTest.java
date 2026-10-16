@@ -12,6 +12,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -46,6 +47,7 @@ class JpaMappingTest {
 
         Order order = new Order();
         order.setCustomer(savedCustomer);
+        order.setDeliveryDate(LocalDate.of(2026, 10, 13));
         order.setStatus(OrderStatus.PENDING);
         order.setDeliveryAddressSnapshot("San Martin 100");
         order.setTotalAmount(new BigDecimal("10.00"));

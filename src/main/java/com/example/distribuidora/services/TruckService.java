@@ -2,13 +2,15 @@ package com.example.distribuidora.services;
 
 import com.example.distribuidora.dtos.TruckRequest;
 import com.example.distribuidora.dtos.TruckResponse;
+import com.example.distribuidora.exceptions.BusinessRuleException;
+import com.example.distribuidora.exceptions.DuplicateResourceException;
 import com.example.distribuidora.exceptions.EntityNotFoundException;
 import com.example.distribuidora.models.Truck;
 import com.example.distribuidora.models.User;
 import com.example.distribuidora.repositories.ITruckRepository;
 import com.example.distribuidora.repositories.IUserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -17,18 +19,21 @@ public class TruckService {
 
     private static final String DRIVER_ROLE = "REPARTIDOR";
 
-    @Autowired
-    private ITruckRepository truckRepo;
+    private final ITruckRepository truckRepo;
+    private final IUserRepository userRepo;
 
-    @Autowired
-    private IUserRepository userRepo;
+    public TruckService(ITruckRepository truckRepo, IUserRepository userRepo) {
+        this.truckRepo = truckRepo;
+        this.userRepo = userRepo;
+    }
 
+    @Transactional
     public TruckResponse save(TruckRequest request) {
 
         String plate = this.normalizePlate(request.licensePlate());
 
         if (truckRepo.existsByLicensePlate(plate)) {
-            throw new IllegalArgumentException("A truck with license plate '" + plate + "' already exists");
+            throw new DuplicateResourceException("A truck with license plate '" + plate + "' already exists");
         }
 
         Truck truck = new Truck();
@@ -38,26 +43,30 @@ public class TruckService {
         return new TruckResponse(truckRepo.save(truck));
     }
 
+    @Transactional(readOnly = true)
     public List<TruckResponse> getTrucks() {
         return truckRepo.findAll().stream().map(TruckResponse::new).toList();
     }
 
+    @Transactional(readOnly = true)
     public List<TruckResponse> getActiveTrucks() {
         return truckRepo.findByIsActiveTrue().stream().map(TruckResponse::new).toList();
     }
 
+    @Transactional(readOnly = true)
     public TruckResponse getTruckById(Long id) {
         return new TruckResponse(this.findTruck(id));
     }
 
     //PUT: reemplaza patente y chofer. Si driverId viene null, el camion queda sin chofer
+    @Transactional
     public TruckResponse update(Long id, TruckRequest request) {
 
         Truck truck = this.findTruck(id);
         String plate = this.normalizePlate(request.licensePlate());
 
         if (truckRepo.existsByLicensePlateAndIdNot(plate, id)) {
-            throw new IllegalArgumentException("A truck with license plate '" + plate + "' already exists");
+            throw new DuplicateResourceException("A truck with license plate '" + plate + "' already exists");
         }
 
         truck.setLicensePlate(plate);
@@ -66,23 +75,27 @@ public class TruckService {
         return new TruckResponse(truckRepo.save(truck));
     }
 
+    @Transactional
     public void desactivate(Long id) {
         Truck truck = this.findTruck(id);
         truck.setActive(false);
         truckRepo.save(truck);
     }
 
+    @Transactional
     public void activate(Long id) {
         Truck truck = this.findTruck(id);
         truck.setActive(true);
         truckRepo.save(truck);
     }
 
+    @Transactional
     public void delete(Long id) {
-        truckRepo.delete(this.findTruck(id));
+        desactivate(id);
     }
 
-    private Truck findTruck(Long id) {
+    @Transactional(readOnly = true)
+    public Truck findTruck(Long id) {
         return truckRepo.findById(id).orElseThrow(() -> new EntityNotFoundException("Truck", id));
     }
 
@@ -99,10 +112,10 @@ public class TruckService {
                 .orElseThrow(() -> new EntityNotFoundException("User", driverId));
 
         if (!driver.isActive()) {
-            throw new IllegalArgumentException("User " + driverId + " is not active");
+            throw new BusinessRuleException("User " + driverId + " is not active");
         }
         if (!DRIVER_ROLE.equals(driver.getRole().getName())) {
-            throw new IllegalArgumentException("User " + driverId + " doesn't have the role " + DRIVER_ROLE);
+            throw new BusinessRuleException("User " + driverId + " doesn't have the role " + DRIVER_ROLE);
         }
         return driver;
     }

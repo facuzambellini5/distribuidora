@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -25,19 +26,22 @@ public class OrderService {
     private final ProductService productService;
     private final IUserRepository userRepo;
     private final LedgerService ledgerService;
+    private final DeliveryStockService deliveryStockService;
 
     public OrderService(IOrderRepository orderRepo,
                         CustomerService customerService,
                         AddressService addressService,
                         ProductService productService,
                         IUserRepository userRepo,
-                        LedgerService ledgerService) {
+                        LedgerService ledgerService,
+                        DeliveryStockService deliveryStockService) {
         this.orderRepo = orderRepo;
         this.customerService = customerService;
         this.addressService = addressService;
         this.productService = productService;
         this.userRepo = userRepo;
         this.ledgerService = ledgerService;
+        this.deliveryStockService = deliveryStockService;
     }
 
     @Transactional
@@ -48,9 +52,11 @@ public class OrderService {
         Order order = new Order();
         order.setCustomer(customer);
         order.setTruckId(request.truckId());
+        order.setDeliveryDate(resolveDeliveryDate(request.deliveryDate()));
         order.setStatus(OrderStatus.PENDING);
         order.setCreatedBy(resolveUser(request.createdById()));
         applyAddressSnapshot(order, address);
+        deliveryStockService.validateStockForOrder(order.getTruckId(), order.getDeliveryDate(), request.items(), null);
         applyItems(order, request.items());
 
         return new OrderResponse(orderRepo.save(order));
@@ -88,9 +94,11 @@ public class OrderService {
 
         order.setCustomer(customer);
         order.setTruckId(request.truckId());
+        order.setDeliveryDate(resolveDeliveryDate(request.deliveryDate()));
         order.setCreatedBy(resolveUser(request.createdById()));
         applyAddressSnapshot(order, address);
         order.getItems().clear();
+        deliveryStockService.validateStockForOrder(order.getTruckId(), order.getDeliveryDate(), request.items(), order.getId());
         applyItems(order, request.items());
 
         return new OrderResponse(orderRepo.save(order));
@@ -100,6 +108,7 @@ public class OrderService {
     public OrderResponse markInRoute(Long id) {
         Order order = getOrderEntity(id);
         requireStatus(order, OrderStatus.PENDING, "Only pending orders can be marked in route.");
+        deliveryStockService.validateStockForOrder(order.getTruckId(), order.getDeliveryDate(), toItemRequests(order), order.getId());
         order.setStatus(OrderStatus.IN_ROUTE);
         return new OrderResponse(orderRepo.save(order));
     }
@@ -113,6 +122,7 @@ public class OrderService {
         if (order.getStatus() == OrderStatus.CANCELLED) {
             throw new BusinessRuleException("Cancelled orders cannot be delivered.");
         }
+        deliveryStockService.validateStockForOrder(order.getTruckId(), order.getDeliveryDate(), toItemRequests(order), order.getId());
         order.setStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now());
         Order saved = orderRepo.save(order);
@@ -170,6 +180,16 @@ public class OrderService {
     private User resolveUser(Long userId) {
         if (userId == null) return null;
         return userRepo.findById(userId).orElseThrow(() -> new EntityNotFoundException("User", userId));
+    }
+
+    private LocalDate resolveDeliveryDate(LocalDate deliveryDate) {
+        return deliveryDate != null ? deliveryDate : LocalDate.now();
+    }
+
+    private List<OrderItemRequest> toItemRequests(Order order) {
+        return order.getItems().stream()
+                .map(item -> new OrderItemRequest(item.getProduct().getId(), item.getQuantity()))
+                .toList();
     }
 
     private void requireStatus(Order order, OrderStatus status, String message) {
