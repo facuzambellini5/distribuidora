@@ -28,8 +28,9 @@ public class OrderController {
     @GetMapping
     @PreAuthorize("hasAuthority('orders:read')")
     public ResponseEntity<?> list(@RequestParam(required = false) Long customerId,
+                                  @RequestParam(required = false) Long truckId,
                                   @RequestParam(required = false) OrderStatus status) {
-        return ResponseEntity.ok(orderService.getOrders(customerId, status));
+        return ResponseEntity.ok(orderService.getOrders(customerId, truckId, status));
     }
 
     @GetMapping("/{id}")

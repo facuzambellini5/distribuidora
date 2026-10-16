@@ -2,7 +2,11 @@ package com.example.distribuidora.services;
 
 import com.example.distribuidora.dtos.LoginRequest;
 import com.example.distribuidora.dtos.LoginResponse;
+import com.example.distribuidora.dtos.MeResponse;
+import com.example.distribuidora.exceptions.EntityNotFoundException;
+import com.example.distribuidora.models.Truck;
 import com.example.distribuidora.models.User;
+import com.example.distribuidora.repositories.ITruckRepository;
 import com.example.distribuidora.repositories.IUserRepository;
 import com.example.distribuidora.security.JwtService;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -15,11 +19,14 @@ public class AuthService {
 
     private final AuthenticationManager authenticationManager;
     private final IUserRepository userRepo;
+    private final ITruckRepository truckRepo;
     private final JwtService jwtService;
 
-    public AuthService(AuthenticationManager authenticationManager, IUserRepository userRepo, JwtService jwtService) {
+    public AuthService(AuthenticationManager authenticationManager, IUserRepository userRepo,
+                       ITruckRepository truckRepo, JwtService jwtService) {
         this.authenticationManager = authenticationManager;
         this.userRepo = userRepo;
+        this.truckRepo = truckRepo;
         this.jwtService = jwtService;
     }
 
@@ -44,5 +51,15 @@ public class AuthService {
         long expiresInSeconds = jwtService.getExpirationMs() / 1000;
 
         return new LoginResponse(token, "Bearer", expiresInSeconds, user.getUsername());
+    }
+
+    // Datos del usuario logueado. Se relee de la base (no del token) para que
+    // rol, permisos y camion asignado reflejen el estado actual.
+    @Transactional(readOnly = true)
+    public MeResponse me(String username) {
+        User user = userRepo.findByUsername(username)
+                .orElseThrow(() -> new EntityNotFoundException("User", username));
+        Truck truck = truckRepo.findFirstByDriverIdAndIsActiveTrue(user.getId()).orElse(null);
+        return new MeResponse(user, truck);
     }
 }
