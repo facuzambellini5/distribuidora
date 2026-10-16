@@ -2,6 +2,8 @@ package com.example.distribuidora.services;
 
 import com.example.distribuidora.dtos.OrderItemRequest;
 import com.example.distribuidora.dtos.OrderRequest;
+import com.example.distribuidora.dtos.OrderDeliveryRequest;
+import com.example.distribuidora.enums.OrderPaymentMethod;
 import com.example.distribuidora.enums.OrderStatus;
 import com.example.distribuidora.exceptions.BusinessRuleException;
 import com.example.distribuidora.models.*;
@@ -103,6 +105,93 @@ class OrderServiceTest {
         // entregar no mueve stock: la carga se registro al asignar el pedido
         verifyNoInteractions(deliveryStockService);
         verify(ledgerService).registerCharge(customer, order, new BigDecimal("42.00"));
+        verify(ledgerService).registerOrderPayment(order, BigDecimal.ZERO);
+        assertEquals(OrderPaymentMethod.CURRENT_ACCOUNT, order.getPaymentMethod());
+        assertEquals(BigDecimal.ZERO, order.getCashAmount());
+        assertEquals(BigDecimal.ZERO, order.getTransferAmount());
+    }
+
+    @Test
+    void markDeliveredWithCashStoresCashAndPaysFullOrderTotal() {
+        Order order = orderWithTotal(20L, new BigDecimal("42.00"));
+        when(orderRepo.findById(20L)).thenReturn(Optional.of(order));
+        when(orderRepo.save(order)).thenReturn(order);
+
+        orderService.markDelivered(20L, new OrderDeliveryRequest(OrderPaymentMethod.CASH, null, null));
+
+        assertEquals(OrderPaymentMethod.CASH, order.getPaymentMethod());
+        assertEquals(new BigDecimal("42.00"), order.getCashAmount());
+        assertEquals(BigDecimal.ZERO, order.getTransferAmount());
+        verify(ledgerService).registerOrderPayment(order, new BigDecimal("42.00"));
+    }
+
+    @Test
+    void markDeliveredWithTransferStoresTransferAndPaysFullOrderTotal() {
+        Order order = orderWithTotal(21L, new BigDecimal("42.00"));
+        when(orderRepo.findById(21L)).thenReturn(Optional.of(order));
+        when(orderRepo.save(order)).thenReturn(order);
+
+        orderService.markDelivered(21L, new OrderDeliveryRequest(OrderPaymentMethod.TRANSFER, null, null));
+
+        assertEquals(OrderPaymentMethod.TRANSFER, order.getPaymentMethod());
+        assertEquals(BigDecimal.ZERO, order.getCashAmount());
+        assertEquals(new BigDecimal("42.00"), order.getTransferAmount());
+        verify(ledgerService).registerOrderPayment(order, new BigDecimal("42.00"));
+    }
+
+    @Test
+    void markDeliveredWithMixedPaymentPersistsBothAmountsAndPaysTheirSum() {
+        Order order = orderWithTotal(22L, new BigDecimal("42.00"));
+        when(orderRepo.findById(22L)).thenReturn(Optional.of(order));
+        when(orderRepo.save(order)).thenReturn(order);
+
+        orderService.markDelivered(22L, new OrderDeliveryRequest(OrderPaymentMethod.MIXED,
+                new BigDecimal("12.00"), new BigDecimal("30.00")));
+
+        assertEquals(OrderPaymentMethod.MIXED, order.getPaymentMethod());
+        assertEquals(new BigDecimal("12.00"), order.getCashAmount());
+        assertEquals(new BigDecimal("30.00"), order.getTransferAmount());
+        verify(ledgerService).registerOrderPayment(order, new BigDecimal("42.00"));
+    }
+
+    @Test
+    void mixedPaymentMustEqualOrderTotalAndDoesNotDeliverWhenInvalid() {
+        Order order = orderWithTotal(23L, new BigDecimal("42.00"));
+        when(orderRepo.findById(23L)).thenReturn(Optional.of(order));
+
+        assertThrows(BusinessRuleException.class, () -> orderService.markDelivered(23L,
+                new OrderDeliveryRequest(OrderPaymentMethod.MIXED,
+                        new BigDecimal("12.00"), new BigDecimal("29.00"))));
+
+        assertEquals(OrderStatus.IN_ROUTE, order.getStatus());
+        verify(orderRepo, never()).save(any(Order.class));
+        verifyNoInteractions(ledgerService);
+    }
+
+    @Test
+    void mixedPaymentRequiresBothMethodsAndRejectsNegativeAmounts() {
+        Order order = orderWithTotal(24L, new BigDecimal("42.00"));
+        when(orderRepo.findById(24L)).thenReturn(Optional.of(order));
+
+        assertThrows(BusinessRuleException.class, () -> orderService.markDelivered(24L,
+                new OrderDeliveryRequest(OrderPaymentMethod.MIXED, BigDecimal.ZERO, new BigDecimal("42.00"))));
+        assertThrows(BusinessRuleException.class, () -> orderService.markDelivered(24L,
+                new OrderDeliveryRequest(OrderPaymentMethod.MIXED,
+                        new BigDecimal("50.00"), new BigDecimal("-8.00"))));
+
+        verify(orderRepo, never()).save(any(Order.class));
+        verifyNoInteractions(ledgerService);
+    }
+
+    @Test
+    void deliveringAlreadyDeliveredOrderDoesNotRegisterAnotherChargeOrPayment() {
+        Order order = orderWithStatus(25L, OrderStatus.DELIVERED);
+        when(orderRepo.findById(25L)).thenReturn(Optional.of(order));
+
+        orderService.markDelivered(25L, new OrderDeliveryRequest(OrderPaymentMethod.CASH, null, null));
+
+        verify(orderRepo, never()).save(any(Order.class));
+        verifyNoInteractions(ledgerService);
     }
 
     @Test
@@ -207,6 +296,12 @@ class OrderServiceTest {
         order.setCustomer(customer);
         order.setStatus(status);
         order.setDeliveryDate(LocalDate.of(2026, 10, 13));
+        return order;
+    }
+
+    private Order orderWithTotal(Long id, BigDecimal total) {
+        Order order = orderWithStatus(id, OrderStatus.IN_ROUTE);
+        order.setTotalAmount(total);
         return order;
     }
 }

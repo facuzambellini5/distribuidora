@@ -1,6 +1,7 @@
 package com.example.distribuidora.controllers;
 
 import com.example.distribuidora.dtos.OrderRequest;
+import com.example.distribuidora.dtos.OrderDeliveryRequest;
 import com.example.distribuidora.enums.OrderStatus;
 import com.example.distribuidora.services.OrderService;
 import jakarta.validation.Valid;
@@ -53,8 +54,8 @@ public class OrderController {
 
     @PatchMapping("/{id}/delivered")
     @PreAuthorize("hasAuthority('orders:deliver')")
-    public ResponseEntity<?> markDelivered(@PathVariable Long id) {
-        return ResponseEntity.ok(orderService.markDelivered(id));
+    public ResponseEntity<?> markDelivered(@PathVariable Long id, @Valid @RequestBody OrderDeliveryRequest request) {
+        return ResponseEntity.ok(orderService.markDelivered(id, request));
     }
 
     @PatchMapping("/{id}/cancelled")

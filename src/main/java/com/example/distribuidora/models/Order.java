@@ -1,6 +1,7 @@
 package com.example.distribuidora.models;
 
 import com.example.distribuidora.enums.OrderStatus;
+import com.example.distribuidora.enums.OrderPaymentMethod;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -57,6 +58,16 @@ public class Order {
 
     @Column(name = "delivered_at")
     private LocalDateTime deliveredAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method")
+    private OrderPaymentMethod paymentMethod;
+
+    @Column(name = "cash_amount")
+    private BigDecimal cashAmount;
+
+    @Column(name = "transfer_amount")
+    private BigDecimal transferAmount;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();

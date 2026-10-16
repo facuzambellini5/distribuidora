@@ -3,6 +3,8 @@ package com.example.distribuidora.services;
 import com.example.distribuidora.dtos.OrderItemRequest;
 import com.example.distribuidora.dtos.OrderRequest;
 import com.example.distribuidora.dtos.OrderResponse;
+import com.example.distribuidora.dtos.OrderDeliveryRequest;
+import com.example.distribuidora.enums.OrderPaymentMethod;
 import com.example.distribuidora.enums.OrderStatus;
 import com.example.distribuidora.exceptions.BusinessRuleException;
 import com.example.distribuidora.exceptions.EntityNotFoundException;
@@ -114,7 +116,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse markDelivered(Long id) {
+    public OrderResponse markDelivered(Long id, OrderDeliveryRequest request) {
         Order order = getOrderEntity(id);
         if (order.getStatus() == OrderStatus.DELIVERED) {
             return new OrderResponse(order);
@@ -122,12 +124,20 @@ public class OrderService {
         if (order.getStatus() == OrderStatus.CANCELLED) {
             throw new BusinessRuleException("Cancelled orders cannot be delivered.");
         }
+        applyPayment(order, request);
         // La carga ya se registro al asignar el pedido; al entregar esas unidades quedan como entregadas (no se revierten).
         order.setStatus(OrderStatus.DELIVERED);
         order.setDeliveredAt(LocalDateTime.now());
         Order saved = orderRepo.save(order);
         ledgerService.registerCharge(saved.getCustomer(), saved, saved.getTotalAmount());
+        ledgerService.registerOrderPayment(saved, saved.getCashAmount().add(saved.getTransferAmount()));
         return new OrderResponse(saved);
+    }
+
+    /** Preserves the service-level behavior for callers that deliver without collecting payment. */
+    @Transactional
+    public OrderResponse markDelivered(Long id) {
+        return markDelivered(id, new OrderDeliveryRequest(OrderPaymentMethod.CURRENT_ACCOUNT, null, null));
     }
 
     @Transactional
@@ -184,6 +194,49 @@ public class OrderService {
     private void requireStatus(Order order, OrderStatus status, String message) {
         if (order.getStatus() != status) {
             throw new BusinessRuleException(message);
+        }
+    }
+
+    private void applyPayment(Order order, OrderDeliveryRequest request) {
+        if (request == null || request.paymentMethod() == null) {
+            throw new BusinessRuleException("A payment method is required when delivering an order.");
+        }
+        BigDecimal cash = request.cashAmount() == null ? BigDecimal.ZERO : request.cashAmount();
+        BigDecimal transfer = request.transferAmount() == null ? BigDecimal.ZERO : request.transferAmount();
+        if (cash.compareTo(BigDecimal.ZERO) < 0 || transfer.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessRuleException("Payment amounts cannot be negative.");
+        }
+
+        switch (request.paymentMethod()) {
+            case CASH -> {
+                requireNoExplicitAmounts(cash, transfer);
+                cash = order.getTotalAmount();
+            }
+            case TRANSFER -> {
+                requireNoExplicitAmounts(cash, transfer);
+                transfer = order.getTotalAmount();
+            }
+            case MIXED -> {
+                if (cash.compareTo(BigDecimal.ZERO) <= 0 || transfer.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new BusinessRuleException("Mixed payment requires positive cash and transfer amounts.");
+                }
+                if (cash.add(transfer).compareTo(order.getTotalAmount()) != 0) {
+                    throw new BusinessRuleException("Cash and transfer amounts must equal the order total.");
+                }
+            }
+            case CURRENT_ACCOUNT -> {
+                requireNoExplicitAmounts(cash, transfer);
+            }
+        }
+
+        order.setPaymentMethod(request.paymentMethod());
+        order.setCashAmount(cash);
+        order.setTransferAmount(transfer);
+    }
+
+    private void requireNoExplicitAmounts(BigDecimal cash, BigDecimal transfer) {
+        if (cash.compareTo(BigDecimal.ZERO) != 0 || transfer.compareTo(BigDecimal.ZERO) != 0) {
+            throw new BusinessRuleException("Cash and transfer amounts are only accepted for mixed payments.");
         }
     }
 }

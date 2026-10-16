@@ -125,6 +125,15 @@ public class DeliveryStockService {
     }
 
     @Transactional
+    public DeliveryStockResponse update(Long truckId, Long stockId, DeliveryStockUpdateRequest request) {
+        DeliveryStock stock = this.findStock(stockId);
+        if (!stock.getTruck().getId().equals(truckId)) {
+            throw new EntityNotFoundException("DeliveryStock", stockId);
+        }
+        return update(stockId, request);
+    }
+
+    @Transactional
     public void delete(Long stockId) {
         DeliveryStock stock = this.findStock(stockId);
         int reserved = orderRepo.sumReservedQuantity(
@@ -137,6 +146,15 @@ public class DeliveryStockService {
             throw new BusinessRuleException("Cannot delete stock assigned to existing orders. Reserved: " + reserved);
         }
         stockRepo.delete(stock);
+    }
+
+    @Transactional
+    public void delete(Long truckId, Long stockId) {
+        DeliveryStock stock = this.findStock(stockId);
+        if (!stock.getTruck().getId().equals(truckId)) {
+            throw new EntityNotFoundException("DeliveryStock", stockId);
+        }
+        delete(stockId);
     }
 
     // ------------------------------------------------------------------
