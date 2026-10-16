@@ -63,16 +63,13 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderResponse> getOrders(Long customerId, OrderStatus status) {
-        List<Order> orders;
-        if (customerId != null) {
-            orders = orderRepo.findByCustomerId(customerId);
-        } else if (status != null) {
-            orders = orderRepo.findByStatus(status);
-        } else {
-            orders = orderRepo.findAll();
-        }
-        return orders.stream().map(OrderResponse::new).toList();
+    public List<OrderResponse> getOrders(Long customerId, Long truckId, OrderStatus status) {
+        return orderRepo.search(customerId, truckId, status).stream().map(OrderResponse::new).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderResponse> getOrdersByTruck(Long truckId) {
+        return getOrders(null, truckId, null);
     }
 
     @Transactional(readOnly = true)

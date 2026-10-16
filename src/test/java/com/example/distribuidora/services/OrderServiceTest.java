@@ -97,4 +97,12 @@ class OrderServiceTest {
         verify(deliveryStockService).validateStockForOrder(null, LocalDate.of(2026, 10, 13), List.of(), 5L);
         verify(ledgerService).registerCharge(customer, order, new BigDecimal("42.00"));
     }
+
+    @Test
+    void getOrdersByTruckDelegatesTruckFilterToRepository() {
+        when(orderRepo.search(null, 5L, null)).thenReturn(List.of());
+
+        assertEquals(0, orderService.getOrdersByTruck(5L).size());
+        verify(orderRepo).search(null, 5L, null);
+    }
 }

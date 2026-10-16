@@ -17,6 +17,19 @@ public interface IOrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByStatus(OrderStatus status);
 
+    // Filtros opcionales y combinables: los parametros null se ignoran.
+    @Query("""
+            select o
+            from Order o
+            where (:customerId is null or o.customer.id = :customerId)
+              and (:truckId is null or o.truckId = :truckId)
+              and (:status is null or o.status = :status)
+            order by o.deliveryDate desc, o.id desc
+            """)
+    List<Order> search(@Param("customerId") Long customerId,
+                       @Param("truckId") Long truckId,
+                       @Param("status") OrderStatus status);
+
     @Query("""
             select coalesce(sum(i.quantity), 0)
             from Order o

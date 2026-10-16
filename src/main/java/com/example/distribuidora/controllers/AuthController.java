@@ -2,6 +2,7 @@ package com.example.distribuidora.controllers;
 
 import com.example.distribuidora.dtos.LoginRequest;
 import com.example.distribuidora.dtos.LoginResponse;
+import com.example.distribuidora.dtos.MeResponse;
 import com.example.distribuidora.services.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -33,9 +34,8 @@ public class AuthController {
     // Le permite al frontend preguntar "¿quién está logueado ahora?" sin
     // tener que decodificar el JWT del lado de Angular. Spring ya nos
     // arma este objeto Authentication solo, gracias al JwtAuthenticationFilter.
-    //TODO DEVOLVER LOS DATOS CORRESPONDIENTES
     @GetMapping("/me")
-    public ResponseEntity<String> me(Authentication authentication) {
-        return ResponseEntity.ok(authentication.getName());
+    public ResponseEntity<MeResponse> me(Authentication authentication) {
+        return ResponseEntity.ok(authService.me(authentication.getName()));
     }
 }
