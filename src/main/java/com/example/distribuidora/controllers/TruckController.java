@@ -44,7 +44,7 @@ public class TruckController {
         return ResponseEntity.ok(truckService.getTrucks());
     }
 
-    @GetMapping("/active")
+    @GetMapping("/get/active") //ver si estandarizar dsp
     @PreAuthorize("hasAuthority('trucks:read')")
     public ResponseEntity<?> getActiveTrucks() {
         return ResponseEntity.ok(truckService.getActiveTrucks());

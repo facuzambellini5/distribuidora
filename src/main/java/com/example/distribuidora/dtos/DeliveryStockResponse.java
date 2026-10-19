@@ -1,5 +1,6 @@
 package com.example.distribuidora.dtos;
 
+import com.example.distribuidora.enums.ProductUnit;
 import com.example.distribuidora.models.DeliveryStock;
 
 import java.time.LocalDate;
@@ -10,6 +11,7 @@ public record DeliveryStockResponse(
         String licensePlate,
         Long productId,
         String productName,
+        ProductUnit productUnit,
         LocalDate deliveryDate,
         int quantityLoaded,
         int quantityReturned
@@ -22,6 +24,7 @@ public record DeliveryStockResponse(
                 stock.getTruck().getLicensePlate(),
                 stock.getProduct().getId(),
                 stock.getProduct().getName(),
+                stock.getProduct().getUnit(),
                 stock.getDeliveryDate(),
                 stock.getQuantityLoaded(),
                 stock.getQuantityReturned()

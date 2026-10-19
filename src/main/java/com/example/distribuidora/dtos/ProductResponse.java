@@ -1,5 +1,6 @@
 package com.example.distribuidora.dtos;
 
+import com.example.distribuidora.enums.ProductUnit;
 import com.example.distribuidora.models.Product;
 
 import java.math.BigDecimal;
@@ -11,6 +12,7 @@ public record ProductResponse(
         String description,
         String sku,
         BigDecimal unitPrice,
+        ProductUnit unit,
         Long categoryId,
         String categoryName,
         boolean active,
@@ -24,6 +26,7 @@ public record ProductResponse(
                 product.getDescription(),
                 product.getSku(),
                 product.getUnitPrice(),
+                product.getUnit(),
                 product.getCategory() == null ? null : product.getCategory().getId(),
                 product.getCategory() == null ? null : product.getCategory().getName(),
                 product.isActive(),

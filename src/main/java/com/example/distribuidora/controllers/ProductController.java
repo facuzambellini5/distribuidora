@@ -86,6 +86,6 @@ public class ProductController {
     }
 
     private ProductRequest toRequest(ProductDto dto) {
-        return new ProductRequest(dto.getName(), dto.getDescription(), dto.getSku(), dto.getUnitPrice(), dto.getCategoryId());
+        return new ProductRequest(dto.getName(), dto.getDescription(), dto.getSku(), dto.getUnitPrice(), dto.getUnit(), dto.getCategoryId());
     }
 }
