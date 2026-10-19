@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 //TODO VER SI AGREGAR PERMISSIONS para VENDEDOR
 @RestController
-@RequestMapping("/api/trucks")
+@RequestMapping("/api/truck")
 public class TruckController {
 
     private final TruckService truckService;
