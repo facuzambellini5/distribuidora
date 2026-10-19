@@ -1,5 +1,6 @@
 package com.example.distribuidora.dtos;
 
+import com.example.distribuidora.enums.ProductUnit;
 import com.example.distribuidora.models.Product;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
@@ -28,6 +29,9 @@ public class ProductDto {
     @DecimalMin(value = "0.0", inclusive = false, message = "Unit price must be greater than 0")
     private BigDecimal unitPrice;
 
+    @NotNull(message = "Unit is required")
+    private ProductUnit unit;
+
     //Id de la categoria a la que pertenece el producto (opcional)
     private Long categoryId;
 
@@ -36,6 +40,7 @@ public class ProductDto {
         this.description = product.getDescription();
         this.sku = product.getSku();
         this.unitPrice = product.getUnitPrice();
+        this.unit = product.getUnit();
         this.categoryId = product.getCategory() != null ? product.getCategory().getId() : null;
     }
 }

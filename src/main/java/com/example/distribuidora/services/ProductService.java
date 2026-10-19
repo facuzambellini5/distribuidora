@@ -104,6 +104,7 @@ public class ProductService implements IProductService {
         product.setDescription(request.description());
         product.setSku(request.sku());
         product.setUnitPrice(request.unitPrice());
+        product.setUnit(request.unit());
         product.setCategory(resolveCategory(request.categoryId()));
     }
 

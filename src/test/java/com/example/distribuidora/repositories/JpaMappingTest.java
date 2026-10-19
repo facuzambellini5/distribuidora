@@ -1,9 +1,11 @@
 package com.example.distribuidora.repositories;
 
 import com.example.distribuidora.enums.OrderStatus;
+import com.example.distribuidora.enums.ProductUnit;
 import com.example.distribuidora.models.Address;
 import com.example.distribuidora.models.Customer;
 import com.example.distribuidora.models.Order;
+import com.example.distribuidora.models.Product;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -35,13 +37,16 @@ class JpaMappingTest {
     private final ICustomerRepository customerRepo;
     private final IAddressRepository addressRepo;
     private final IOrderRepository orderRepo;
+    private final IProductRepository productRepo;
 
     JpaMappingTest(ICustomerRepository customerRepo,
                    IAddressRepository addressRepo,
-                   IOrderRepository orderRepo) {
+                   IOrderRepository orderRepo,
+                   IProductRepository productRepo) {
         this.customerRepo = customerRepo;
         this.addressRepo = addressRepo;
         this.orderRepo = orderRepo;
+        this.productRepo = productRepo;
     }
 
     @Test
@@ -65,5 +70,17 @@ class JpaMappingTest {
         Order saved = orderRepo.save(order);
 
         assertEquals(OrderStatus.PENDING, saved.getStatus());
+    }
+
+    @Test
+    void productUnitMappingMatchesFlywaySchema() {
+        Product product = new Product();
+        product.setName("Aceite");
+        product.setUnitPrice(new BigDecimal("900.00"));
+        product.setUnit(ProductUnit.LITER);
+
+        Product saved = productRepo.saveAndFlush(product);
+
+        assertEquals(ProductUnit.LITER, saved.getUnit());
     }
 }

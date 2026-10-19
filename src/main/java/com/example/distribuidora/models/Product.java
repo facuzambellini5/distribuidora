@@ -1,5 +1,6 @@
 package com.example.distribuidora.models;
 
+import com.example.distribuidora.enums.ProductUnit;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -32,6 +33,10 @@ public class Product {
 
     @Column(name = "unit_price", nullable = false)
     private BigDecimal unitPrice;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "unit", nullable = false)
+    private ProductUnit unit = ProductUnit.UNIT;
 
     @Column(name = "is_active")
     private boolean isActive = true;
