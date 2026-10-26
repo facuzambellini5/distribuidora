@@ -72,6 +72,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
 
+                        //.requestMatchers(HttpMethod.POST,"/api/users").permitAll() // Para poder crear el primer usuario admin
+
                         //DOCUMENTACIÓN DE API
                         .requestMatchers("/swagger-ui/**",
                                 "/v3/api-docs/**",
