@@ -34,7 +34,7 @@ public class CustomerService{
 
     @Transactional(readOnly = true)
     public List<CustomerResponse> getCustomers(Boolean active) {
-        List<Customer> customers = Boolean.TRUE.equals(active) ? customerRepo.findByActiveTrue() : customerRepo.findAll();
+        List<Customer> customers = Boolean.TRUE.equals(active) ? customerRepo.findByIsActiveTrue() : customerRepo.findAll();
         return customers.stream().map(CustomerResponse::new).toList();
     }
 

@@ -43,7 +43,7 @@ public class ProductService implements IProductService {
         if (categoryId != null) {
             products = productRepo.findByCategoryId(categoryId);
         } else if (Boolean.TRUE.equals(active)) {
-            products = productRepo.findByActiveTrue();
+            products = productRepo.findByIsActiveTrue();
         } else {
             products = productRepo.findAll();
         }

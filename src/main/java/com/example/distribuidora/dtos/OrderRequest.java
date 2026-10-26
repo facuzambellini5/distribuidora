@@ -13,6 +13,6 @@ public record OrderRequest(
         Long truckId,
         LocalDate deliveryDate,
         Long createdById,
-        @Valid @NotEmpty List<OrderItemRequest> items
+        @NotEmpty List<@Valid OrderItemRequest> items
 ) {
 }

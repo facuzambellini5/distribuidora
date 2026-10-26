@@ -38,7 +38,7 @@ class TruckControllerTest {
     void exposesActiveTrucksUsingStandardResourcePath() throws Exception {
         when(truckService.getActiveTrucks()).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/trucks/get/active"))
+        mockMvc.perform(get("/api/trucks").param("active", "true"))
                 .andExpect(status().isOk());
 
         verify(truckService).getActiveTrucks();
