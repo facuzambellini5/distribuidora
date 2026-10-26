@@ -14,9 +14,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-//TODO VER SI AGREGAR PERMISSIONS para VENDEDOR
 @RestController
-@RequestMapping("/api/truck")
+@RequestMapping("/api/trucks")
 public class TruckController {
 
     private final TruckService truckService;
@@ -40,14 +39,10 @@ public class TruckController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('trucks:read')")
-    public ResponseEntity<?> getTrucks() {
-        return ResponseEntity.ok(truckService.getTrucks());
-    }
-
-    @GetMapping("/get/active") //ver si estandarizar dsp
-    @PreAuthorize("hasAuthority('trucks:read')")
-    public ResponseEntity<?> getActiveTrucks() {
-        return ResponseEntity.ok(truckService.getActiveTrucks());
+    public ResponseEntity<?> getTrucks(@RequestParam(required = false) Boolean active) {
+        return ResponseEntity.ok(Boolean.TRUE.equals(active)
+                ? truckService.getActiveTrucks()
+                : truckService.getTrucks());
     }
 
     @GetMapping("/{id}")
@@ -60,13 +55,6 @@ public class TruckController {
     @PreAuthorize("hasAuthority('trucks:write')")
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody TruckRequest request) {
         return ResponseEntity.ok(truckService.update(id, request));
-    }
-
-    @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasAuthority('trucks:write')")
-    public ResponseEntity<?> deactivate(@PathVariable Long id) {
-        truckService.desactivate(id);
-        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     @PatchMapping("/{id}/activate")

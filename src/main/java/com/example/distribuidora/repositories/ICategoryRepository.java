@@ -7,5 +7,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ICategoryRepository extends JpaRepository<Category, Long> {
 
-    java.util.List<Category> findByActiveTrue();
+    java.util.List<Category> findByIsActiveTrue();
 }

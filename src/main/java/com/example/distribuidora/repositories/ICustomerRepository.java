@@ -9,7 +9,7 @@ import java.util.List;
 @Repository
 public interface ICustomerRepository extends JpaRepository<Customer, Long> {
 
-    List<Customer> findByActiveTrue();
+    List<Customer> findByIsActiveTrue();
 
     boolean existsByEmail(String email);
 

@@ -47,7 +47,7 @@ public class OrderController {
     }
 
     @PatchMapping("/{id}/in-route")
-    @PreAuthorize("hasAuthority('orders:write')")
+    @PreAuthorize("hasAuthority('orders:deliver')")
     public ResponseEntity<?> markInRoute(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.markInRoute(id));
     }

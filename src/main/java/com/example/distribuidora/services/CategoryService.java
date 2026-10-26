@@ -33,7 +33,7 @@ public class CategoryService {
 
     @Transactional(readOnly = true)
     public List<CategoryResponse> getCategories(Boolean active) {
-        List<Category> categories = Boolean.TRUE.equals(active) ? categoryRepo.findByActiveTrue() : categoryRepo.findAll();
+        List<Category> categories = Boolean.TRUE.equals(active) ? categoryRepo.findByIsActiveTrue() : categoryRepo.findAll();
         return categories
                 .stream()
                 .map(CategoryResponse::new)
