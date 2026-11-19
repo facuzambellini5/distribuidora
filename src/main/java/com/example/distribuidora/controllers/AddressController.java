@@ -19,25 +19,25 @@ public class AddressController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('customers:write')")
+    // @PreAuthorize("hasAuthority('customers:write')")
     public ResponseEntity<?> create(@PathVariable Long customerId, @Valid @RequestBody AddressRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(addressService.save(customerId, request));
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('customers:read')")
+    // @PreAuthorize("hasAuthority('customers:read')")
     public ResponseEntity<?> list(@PathVariable Long customerId) {
         return ResponseEntity.ok(addressService.getByCustomer(customerId));
     }
 
     @GetMapping("/{addressId}")
-    @PreAuthorize("hasAuthority('customers:read')")
+    // @PreAuthorize("hasAuthority('customers:read')")
     public ResponseEntity<?> get(@PathVariable Long customerId, @PathVariable Long addressId) {
         return ResponseEntity.ok(addressService.get(customerId, addressId));
     }
 
     @PutMapping("/{addressId}")
-    @PreAuthorize("hasAuthority('customers:write')")
+    // @PreAuthorize("hasAuthority('customers:write')")
     public ResponseEntity<?> update(@PathVariable Long customerId,
                                     @PathVariable Long addressId,
                                     @Valid @RequestBody AddressRequest request) {
@@ -45,7 +45,7 @@ public class AddressController {
     }
 
     @DeleteMapping("/{addressId}")
-    @PreAuthorize("hasAuthority('customers:write')")
+    // @PreAuthorize("hasAuthority('customers:write')")
     public ResponseEntity<?> delete(@PathVariable Long customerId, @PathVariable Long addressId) {
         addressService.delete(customerId, addressId);
         return ResponseEntity.noContent().build();

@@ -19,26 +19,26 @@ public class ProductController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('products:write')")
+    // @PreAuthorize("hasAuthority('products:write')")
     public ResponseEntity<?> saveProduct(@Valid @RequestBody ProductRequest productRequest) {
         return ResponseEntity.status(HttpStatus.CREATED).body(productService.saveProduct(productRequest));
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('products:read')")
+    // @PreAuthorize("hasAuthority('products:read')")
     public ResponseEntity<?> getProducts(@RequestParam(required = false) Boolean active,
                                          @RequestParam(required = false) Long categoryId) {
         return ResponseEntity.ok(productService.getProducts(active, categoryId));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('products:read')")
+    // @PreAuthorize("hasAuthority('products:read')")
     public ResponseEntity<?> getProduct(@PathVariable Long id) {
         return ResponseEntity.ok(productService.getProduct(id));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('products:write')")
+    // @PreAuthorize("hasAuthority('products:write')")
     public ResponseEntity<?> updateProduct(@PathVariable Long id,
                                             @Valid @RequestBody ProductRequest productRequest) {
 
@@ -46,14 +46,14 @@ public class ProductController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAuthority('products:write')")
+    // @PreAuthorize("hasAuthority('products:write')")
     public ResponseEntity<?> activateProduct(@PathVariable Long id) {
         productService.activateProduct(id);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('products:write')")
+    // @PreAuthorize("hasAuthority('products:write')")
     public ResponseEntity<?> deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();

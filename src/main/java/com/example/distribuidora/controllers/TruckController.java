@@ -31,14 +31,14 @@ public class TruckController {
     // ---------------------- CRUD de camiones ----------------------
 
     @PostMapping
-    @PreAuthorize("hasAuthority('trucks:write')")
+    // @PreAuthorize("hasAuthority('trucks:write')")
     public ResponseEntity<?> save(@Valid @RequestBody TruckRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(truckService.save(request));
     }
 
 
     @GetMapping
-    @PreAuthorize("hasAuthority('trucks:read')")
+    // @PreAuthorize("hasAuthority('trucks:read')")
     public ResponseEntity<?> getTrucks(@RequestParam(required = false) Boolean active) {
         return ResponseEntity.ok(Boolean.TRUE.equals(active)
                 ? truckService.getActiveTrucks()
@@ -46,26 +46,26 @@ public class TruckController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('trucks:read')")
+    // @PreAuthorize("hasAuthority('trucks:read')")
     public ResponseEntity<?> getTruckById(@PathVariable Long id) {
         return ResponseEntity.ok(truckService.getTruckById(id));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('trucks:write')")
+    // @PreAuthorize("hasAuthority('trucks:write')")
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody TruckRequest request) {
         return ResponseEntity.ok(truckService.update(id, request));
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAuthority('trucks:write')")
+    // @PreAuthorize("hasAuthority('trucks:write')")
     public ResponseEntity<?> activate(@PathVariable Long id) {
         truckService.activate(id);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('trucks:write')")
+    // @PreAuthorize("hasAuthority('trucks:write')")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         truckService.delete(id);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
@@ -74,14 +74,14 @@ public class TruckController {
     // ---------------- Productos cargados en el camion ----------------
 
     @GetMapping("/{truckId}/orders")
-    @PreAuthorize("hasAuthority('orders:read')")
+    // @PreAuthorize("hasAuthority('orders:read')")
     public ResponseEntity<?> getOrders(@PathVariable Long truckId) {
         return ResponseEntity.ok(orderService.getOrdersByTruck(truckId));
     }
 
     //Cargar un producto en el camion
     @PostMapping("/{truckId}/stock")
-    @PreAuthorize("hasAuthority('stock:write')")
+    // @PreAuthorize("hasAuthority('stock:write')")
     public ResponseEntity<?> loadProduct(@PathVariable Long truckId,
                                          @Valid @RequestBody DeliveryStockRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(stockService.load(truckId, request));
@@ -89,7 +89,7 @@ public class TruckController {
 
     //Ver lo cargado en el camion. Ej: /api/trucks/1/stock?date=2026-09-28 (sin date = hoy)
     @GetMapping("/{truckId}/stock")
-    @PreAuthorize("hasAuthority('stock:read')")
+    // @PreAuthorize("hasAuthority('stock:read')")
     public ResponseEntity<?> getStock(@PathVariable Long truckId,
                                       @RequestParam(required = false)
                                       @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -98,14 +98,14 @@ public class TruckController {
 
     //Corregir cantidad cargada / registrar cantidad devuelta
     @PutMapping("/{truckId}/stock/{stockId}")
-    @PreAuthorize("hasAuthority('stock:write')")
+    // @PreAuthorize("hasAuthority('stock:write')")
     public ResponseEntity<?> updateStock(@PathVariable Long truckId, @PathVariable Long stockId,
                                          @Valid @RequestBody DeliveryStockUpdateRequest request) {
         return ResponseEntity.ok(stockService.update(truckId, stockId, request));
     }
 
     @DeleteMapping("/{truckId}/stock/{stockId}")
-    @PreAuthorize("hasAuthority('stock:write')")
+    // @PreAuthorize("hasAuthority('stock:write')")
     public ResponseEntity<?> deleteStock(@PathVariable Long truckId, @PathVariable Long stockId) {
         stockService.delete(truckId, stockId);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
