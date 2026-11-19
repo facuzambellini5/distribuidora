@@ -19,19 +19,19 @@ public class LedgerController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('ledger:read')")
+    // @PreAuthorize("hasAuthority('ledger:read')")
     public ResponseEntity<?> list(@PathVariable Long customerId) {
         return ResponseEntity.ok(ledgerService.getByCustomer(customerId));
     }
 
     @PostMapping("/payments")
-    @PreAuthorize("hasAuthority('ledger:write')")
+    // @PreAuthorize("hasAuthority('ledger:write')")
     public ResponseEntity<?> payment(@PathVariable Long customerId, @Valid @RequestBody LedgerEntryRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ledgerService.registerPayment(customerId, request));
     }
 
     @PostMapping("/adjustments")
-    @PreAuthorize("hasAuthority('ledger:write')")
+    // @PreAuthorize("hasAuthority('ledger:write')")
     public ResponseEntity<?> adjustment(@PathVariable Long customerId, @Valid @RequestBody LedgerEntryRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ledgerService.registerAdjustment(customerId, request));
     }

@@ -21,13 +21,13 @@ public class OrderController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('orders:write')")
+    // @PreAuthorize("hasAuthority('orders:write')")
     public ResponseEntity<?> create(@Valid @RequestBody OrderRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(orderService.create(request));
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('orders:read')")
+    // @PreAuthorize("hasAuthority('orders:read')")
     public ResponseEntity<?> list(@RequestParam(required = false) Long customerId,
                                   @RequestParam(required = false) Long truckId,
                                   @RequestParam(required = false) OrderStatus status) {
@@ -35,37 +35,37 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('orders:read')")
+    // @PreAuthorize("hasAuthority('orders:read')")
     public ResponseEntity<?> get(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.get(id));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('orders:write')")
+    // @PreAuthorize("hasAuthority('orders:write')")
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody OrderRequest request) {
         return ResponseEntity.ok(orderService.update(id, request));
     }
 
     @PatchMapping("/{id}/in-route")
-    @PreAuthorize("hasAuthority('orders:deliver')")
+    // @PreAuthorize("hasAuthority('orders:deliver')")
     public ResponseEntity<?> markInRoute(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.markInRoute(id));
     }
 
     @PatchMapping("/{id}/delivered")
-    @PreAuthorize("hasAuthority('orders:deliver')")
+    // @PreAuthorize("hasAuthority('orders:deliver')")
     public ResponseEntity<?> markDelivered(@PathVariable Long id, @Valid @RequestBody OrderDeliveryRequest request) {
         return ResponseEntity.ok(orderService.markDelivered(id, request));
     }
 
     @PatchMapping("/{id}/cancelled")
-    @PreAuthorize("hasAuthority('orders:write')")
+    // @PreAuthorize("hasAuthority('orders:write')")
     public ResponseEntity<?> cancel(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.cancel(id));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('orders:write')")
+    // @PreAuthorize("hasAuthority('orders:write')")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         orderService.delete(id);
         return ResponseEntity.noContent().build();

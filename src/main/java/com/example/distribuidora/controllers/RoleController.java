@@ -19,7 +19,7 @@ public class RoleController {
 
     // Lista de roles con sus IDs, para armar el selector al crear/editar usuarios.
     @GetMapping
-    @PreAuthorize("hasAuthority('users:manage')")
+    // @PreAuthorize("hasAuthority('users:manage')")
     public ResponseEntity<?> list() {
         return ResponseEntity.ok(roleService.getRoles());
     }

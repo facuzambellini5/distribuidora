@@ -19,25 +19,25 @@ public class CustomerController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('customers:write')")
+    // @PreAuthorize("hasAuthority('customers:write')")
     public ResponseEntity<?> saveCustomer(@Valid @RequestBody CustomerRequest customerRequest) {
         return ResponseEntity.status(HttpStatus.CREATED).body(customerService.saveCustomer(customerRequest));
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('customers:read')")
+    // @PreAuthorize("hasAuthority('customers:read')")
     public ResponseEntity<?> getCustomers(@RequestParam(required = false) Boolean active) {
         return ResponseEntity.ok(customerService.getCustomers(active));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('customers:read')")
+    // @PreAuthorize("hasAuthority('customers:read')")
     public ResponseEntity<?> getCustomer(@PathVariable Long id) {
         return ResponseEntity.ok(customerService.getCustomer(id));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('customers:write')")
+    // @PreAuthorize("hasAuthority('customers:write')")
     public ResponseEntity<?> updateCustomer(@PathVariable Long id,
                                             @Valid @RequestBody CustomerRequest customerRequest) {
 
@@ -45,14 +45,14 @@ public class CustomerController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAuthority('customers:write')")
+    // @PreAuthorize("hasAuthority('customers:write')")
     public ResponseEntity<?> activateCustomer(@PathVariable Long id) {
         customerService.activateCustomer(id);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('customers:write')")
+    // @PreAuthorize("hasAuthority('customers:write')")
     public ResponseEntity<?> deleteCustomer(@PathVariable Long id) {
         customerService.deleteCustomer(id);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
