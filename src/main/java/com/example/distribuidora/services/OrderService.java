@@ -1,6 +1,8 @@
 package com.example.distribuidora.services;
 
 import com.example.distribuidora.dtos.DeliveryHistoryItemResponse;
+import com.example.distribuidora.dtos.DeliveryAttemptResolutionRequest;
+import com.example.distribuidora.dtos.DeliveryAttemptResponse;
 import com.example.distribuidora.dtos.OrderDeliveryRequest;
 import com.example.distribuidora.dtos.OrderItemRequest;
 import com.example.distribuidora.dtos.OrderItemResponse;
@@ -9,18 +11,21 @@ import com.example.distribuidora.dtos.OrderResponse;
 import com.example.distribuidora.dtos.SalesHistoryItemResponse;
 import com.example.distribuidora.enums.OrderPaymentMethod;
 import com.example.distribuidora.enums.OrderStatus;
+import com.example.distribuidora.enums.DeliveryAttemptStatus;
 import com.example.distribuidora.enums.SalesDateType;
 import com.example.distribuidora.exceptions.BusinessRuleException;
 import com.example.distribuidora.exceptions.EntityNotFoundException;
 import com.example.distribuidora.models.Address;
 import com.example.distribuidora.models.Customer;
 import com.example.distribuidora.models.Order;
+import com.example.distribuidora.models.OrderDeliveryAttempt;
 import com.example.distribuidora.models.OrderItem;
 import com.example.distribuidora.models.Product;
 import com.example.distribuidora.models.Truck;
 import com.example.distribuidora.models.User;
 import com.example.distribuidora.repositories.ILedgerEntryRepository;
 import com.example.distribuidora.repositories.IOrderRepository;
+import com.example.distribuidora.repositories.IOrderDeliveryAttemptRepository;
 import com.example.distribuidora.repositories.ITruckRepository;
 import com.example.distribuidora.repositories.IUserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +49,7 @@ public class OrderService {
     private static final String DRIVER_ROLE = "REPARTIDOR";
 
     private final IOrderRepository orderRepo;
+    private final IOrderDeliveryAttemptRepository attemptRepo;
     private final CustomerService customerService;
     private final AddressService addressService;
     private final ProductService productService;
@@ -64,8 +70,10 @@ public class OrderService {
                         DeliveryStockService deliveryStockService,
                         ITruckRepository truckRepo,
                         ILedgerEntryRepository ledgerRepo,
-                        CurrentUserService currentUserService) {
+                        CurrentUserService currentUserService,
+                        IOrderDeliveryAttemptRepository attemptRepo) {
         this.orderRepo = orderRepo;
+        this.attemptRepo = attemptRepo;
         this.customerService = customerService;
         this.addressService = addressService;
         this.productService = productService;
@@ -75,6 +83,20 @@ public class OrderService {
         this.truckRepo = truckRepo;
         this.ledgerRepo = ledgerRepo;
         this.currentUserService = currentUserService;
+    }
+
+    public OrderService(IOrderRepository orderRepo,
+                        CustomerService customerService,
+                        AddressService addressService,
+                        ProductService productService,
+                        IUserRepository userRepo,
+                        LedgerService ledgerService,
+                        DeliveryStockService deliveryStockService,
+                        ITruckRepository truckRepo,
+                        ILedgerEntryRepository ledgerRepo,
+                        CurrentUserService currentUserService) {
+        this(orderRepo, customerService, addressService, productService, userRepo, ledgerService,
+                deliveryStockService, truckRepo, ledgerRepo, currentUserService, null);
     }
 
     public OrderService(IOrderRepository orderRepo,
@@ -295,7 +317,81 @@ public class OrderService {
         enforceDriverOrderAccess(order);
         requireStatus(order, OrderStatus.PENDING, "Only pending orders can be marked in route.");
         order.setStatus(OrderStatus.IN_ROUTE);
-        return new OrderResponse(orderRepo.save(order));
+        Order saved = orderRepo.save(order);
+        if (attemptRepo != null) {
+            attemptRepo.save(newDeliveryAttempt(saved));
+        }
+        return new OrderResponse(saved);
+    }
+
+    @Transactional
+    public DeliveryAttemptResponse markDeliveryAttemptFailed(Long id, DeliveryAttemptResolutionRequest request) {
+        return completeDeliveryAttempt(id, request, DeliveryAttemptStatus.FAILED, OrderStatus.PENDING);
+    }
+
+    @Transactional
+    public DeliveryAttemptResponse markDeliveryAttemptReturned(Long id, DeliveryAttemptResolutionRequest request) {
+        return completeDeliveryAttempt(id, request, DeliveryAttemptStatus.RETURNED, OrderStatus.RETURNED);
+    }
+
+    private DeliveryAttemptResponse completeDeliveryAttempt(Long id,
+                                                            DeliveryAttemptResolutionRequest request,
+                                                            DeliveryAttemptStatus attemptStatus,
+                                                            OrderStatus orderStatus) {
+        if (request == null || request.reason() == null || request.reason().isBlank()) {
+            throw new BusinessRuleException("El motivo de la resolución de entrega es obligatorio.");
+        }
+        Order order = getOrderEntity(id);
+        enforceDriverOrderAccess(order);
+
+        String idempotencyKey = request.idempotencyKey() == null || request.idempotencyKey().isBlank()
+                ? null : request.idempotencyKey().trim();
+        if (idempotencyKey != null && attemptRepo != null) {
+            OrderDeliveryAttempt existing = attemptRepo.findByIdempotencyKey(idempotencyKey).orElse(null);
+            if (existing != null) {
+                if (!existing.getOrder().getId().equals(id)) {
+                    throw new BusinessRuleException("La clave de idempotencia ya fue utilizada para otro intento.");
+                }
+                return new DeliveryAttemptResponse(existing);
+            }
+        }
+
+        requireStatus(order, OrderStatus.IN_ROUTE, "Solo se puede cerrar un intento de un pedido que está en reparto.");
+        if (order.getTruckId() == null) {
+            throw new BusinessRuleException("El pedido debe tener un camión asignado para registrar la devolución.");
+        }
+
+        OrderDeliveryAttempt attempt = attemptRepo == null ? null
+                : findActiveAttempt(id).orElseGet(() -> attemptRepo.save(newDeliveryAttempt(order)));
+        if (attempt != null) {
+            attempt.setIdempotencyKey(idempotencyKey);
+        }
+        deliveryStockService.registerAllRemainingReturnsForFailedAttempt(order, attempt, request.reason().trim());
+
+        if (attempt != null) {
+            attempt.setStatus(attemptStatus);
+            attempt.setReason(request.reason().trim());
+            attempt.setCompletedAt(LocalDateTime.now());
+            attemptRepo.save(attempt);
+        }
+        order.setStatus(orderStatus);
+        orderRepo.save(order);
+        if (orderStatus == OrderStatus.RETURNED) {
+            deliveryStockService.releaseReturnedOrderReservation(id);
+        }
+        return attempt == null ? null : new DeliveryAttemptResponse(attempt);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DeliveryAttemptResponse> getDeliveryAttempts(Long id) {
+        Order order = getOrderEntity(id);
+        enforceDriverOrderAccess(order);
+        if (attemptRepo == null) {
+            return List.of();
+        }
+        return attemptRepo.findByOrder_IdOrderByAttemptNumberDesc(id).stream()
+                .map(DeliveryAttemptResponse::new)
+                .toList();
     }
 
     @Transactional
@@ -317,9 +413,13 @@ public class OrderService {
         if (order.getStatus() == OrderStatus.DELIVERED) {
             return new OrderResponse(order, computeTotalPaidForOrder(order));
         }
-        if (order.getStatus() == OrderStatus.CANCELLED) {
-            throw new BusinessRuleException("Cancelled orders cannot be delivered.");
+        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.RETURNED) {
+            throw new BusinessRuleException("Cancelled or returned orders cannot be delivered.");
         }
+        requireStatus(order, OrderStatus.IN_ROUTE, "Solo se puede entregar un pedido que está en reparto.");
+
+        OrderDeliveryAttempt attempt = attemptRepo == null ? null
+                : findActiveAttempt(id).orElseGet(() -> attemptRepo.save(newDeliveryAttempt(order)));
 
         applyPayment(order, request);
 
@@ -333,7 +433,12 @@ public class OrderService {
         }
 
         Order saved = orderRepo.save(order);
-        deliveryStockService.registerDeliveryForOrder(saved);
+        deliveryStockService.registerDeliveryForOrder(saved, attempt);
+        if (attempt != null) {
+            attempt.setStatus(DeliveryAttemptStatus.DELIVERED);
+            attempt.setCompletedAt(LocalDateTime.now());
+            attemptRepo.save(attempt);
+        }
         ledgerService.registerCharge(saved.getCustomer(), saved, saved.getTotalAmount());
         BigDecimal paidNow = saved.getCashAmount().add(saved.getTransferAmount());
         ledgerService.registerOrderPayment(saved, paidNow);
@@ -352,8 +457,15 @@ public class OrderService {
         if (order.getStatus() == OrderStatus.DELIVERED) {
             throw new BusinessRuleException("Delivered orders cannot be cancelled.");
         }
-        if (order.getStatus() == OrderStatus.CANCELLED) {
+        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.RETURNED) {
             return new OrderResponse(order);
+        }
+        if (attemptRepo != null) {
+            findActiveAttempt(id).ifPresent(attempt -> {
+                attempt.setStatus(DeliveryAttemptStatus.CANCELLED);
+                attempt.setCompletedAt(LocalDateTime.now());
+                attemptRepo.save(attempt);
+            });
         }
         order.setStatus(OrderStatus.CANCELLED);
         Order saved = orderRepo.save(order);
@@ -562,6 +674,26 @@ public class OrderService {
                 || !assignedTruck.getId().equals(order.getTruckId())) {
             throw new AccessDeniedException("No tenés permiso para acceder a pedidos de otro camión.");
         }
+    }
+
+    private java.util.Optional<OrderDeliveryAttempt> findActiveAttempt(Long orderId) {
+        if (attemptRepo == null) {
+            return java.util.Optional.empty();
+        }
+        return attemptRepo.findFirstByOrder_IdAndStatusOrderByAttemptNumberDesc(
+                orderId, DeliveryAttemptStatus.IN_PROGRESS);
+    }
+
+    private OrderDeliveryAttempt newDeliveryAttempt(Order order) {
+        OrderDeliveryAttempt attempt = new OrderDeliveryAttempt();
+        attempt.setOrder(order);
+        attempt.setAttemptNumber(attemptRepo == null ? 1 : (int) attemptRepo.countByOrder_Id(order.getId()) + 1);
+        attempt.setTruckId(order.getTruckId());
+        attempt.setDeliveryDate(order.getDeliveryDate());
+        attempt.setStatus(DeliveryAttemptStatus.IN_PROGRESS);
+        attempt.setAttemptedAt(LocalDateTime.now());
+        attempt.setCreatedBy(currentUserService == null ? null : currentUserService.getCurrentUserOrNull());
+        return attempt;
     }
 
     private String buildAddressSnapshot(Address address) {

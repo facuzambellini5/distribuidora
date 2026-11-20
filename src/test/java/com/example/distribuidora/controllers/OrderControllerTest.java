@@ -1,6 +1,7 @@
 package com.example.distribuidora.controllers;
 
 import com.example.distribuidora.dtos.OrderDeliveryRequest;
+import com.example.distribuidora.dtos.DeliveryAttemptResolutionRequest;
 import com.example.distribuidora.enums.OrderPaymentMethod;
 import com.example.distribuidora.exceptions.GlobalExceptionHandler;
 import com.example.distribuidora.services.OrderService;
@@ -47,5 +48,37 @@ class OrderControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void failedDeliveryRequiresAReason() throws Exception {
+        mockMvc.perform(patch("/api/orders/7/delivery-attempts/failed")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\" \"}"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void failedDeliveryAcceptsReasonAndIdempotencyKey() throws Exception {
+        mockMvc.perform(patch("/api/orders/7/delivery-attempts/failed")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"No me atendieron\",\"idempotencyKey\":\"attempt-7\"}"))
+                .andExpect(status().isOk());
+
+        verify(orderService).markDeliveryAttemptFailed(7L,
+                new DeliveryAttemptResolutionRequest("No me atendieron", "attempt-7"));
+    }
+
+    @Test
+    void returnedOrderAcceptsCustomerRefusalReason() throws Exception {
+        mockMvc.perform(patch("/api/orders/7/delivery-attempts/returned")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"El cliente no quiso recibirlo\"}"))
+                .andExpect(status().isOk());
+
+        verify(orderService).markDeliveryAttemptReturned(7L,
+                new DeliveryAttemptResolutionRequest("El cliente no quiso recibirlo", null));
     }
 }

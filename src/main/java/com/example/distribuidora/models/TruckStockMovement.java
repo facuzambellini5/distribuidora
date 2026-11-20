@@ -35,6 +35,10 @@ public class TruckStockMovement {
     @JoinColumn(name = "delivery_order_id")
     private Order deliveryOrder;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_attempt_id")
+    private OrderDeliveryAttempt deliveryAttempt;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "movement_type", nullable = false, length = 20)
     private StockMovementType movementType;

@@ -105,6 +105,7 @@ class DeliveryStockServiceTest {
         load.setTruckId(1L);
         load.setDeliveryDate(DATE);
         load.setQuantity(quantity);
+        load.setLoadContribution(quantity);
         load.setRevertedAt(active ? null : java.time.LocalDateTime.now());
         return load;
     }
@@ -128,6 +129,7 @@ class DeliveryStockServiceTest {
         ArgumentCaptor<OrderStockLoad> loadCaptor = ArgumentCaptor.forClass(OrderStockLoad.class);
         verify(loadRepo).save(loadCaptor.capture());
         assertEquals(5, loadCaptor.getValue().getQuantity());
+        assertEquals(5, loadCaptor.getValue().getLoadContribution());
         assertEquals(100L, loadCaptor.getValue().getOrderId());
         assertTrue(loadCaptor.getValue().isActive());
     }
@@ -139,6 +141,8 @@ class DeliveryStockServiceTest {
         when(truckRepo.findById(1L)).thenReturn(Optional.of(truck()));
         when(loadRepo.findByOrderIdAndProductId(100L, 7L)).thenReturn(Optional.empty());
         when(stockRepo.findForUpdate(1L, 7L, DATE)).thenReturn(Optional.of(stock));
+        when(productRepo.findById(7L)).thenReturn(Optional.of(product()));
+        when(orderRepo.sumReservedQuantity(1L, DATE, 7L, 100L)).thenReturn(10);
 
         deliveryStockService.registerLoadForOrder(orderWithItems(1L, 4));
 
@@ -171,11 +175,30 @@ class DeliveryStockServiceTest {
         when(truckRepo.findById(1L)).thenReturn(Optional.of(truck()));
         when(loadRepo.findByOrderIdAndProductId(100L, 7L)).thenReturn(Optional.of(reverted));
         when(stockRepo.findForUpdate(1L, 7L, DATE)).thenReturn(Optional.of(stock));
+        when(productRepo.findById(7L)).thenReturn(Optional.of(product()));
 
         deliveryStockService.registerLoadForOrder(orderWithItems(1L, 5));
 
         assertEquals(5, stock.getQuantityLoaded());
         assertTrue(reverted.isActive());
+    }
+
+    @Test
+    void registerLoadReusesReturnedStockAlreadyAvailableOnTruck() {
+        DeliveryStock stock = new DeliveryStock();
+        stock.setQuantityLoaded(10);
+        stock.setQuantityReturned(3);
+        when(truckRepo.findById(1L)).thenReturn(Optional.of(truck()));
+        when(loadRepo.findByOrderIdAndProductId(100L, 7L)).thenReturn(Optional.empty());
+        when(stockRepo.findForUpdate(1L, 7L, DATE)).thenReturn(Optional.of(stock));
+        when(productRepo.findById(7L)).thenReturn(Optional.of(product()));
+        when(orderRepo.sumReservedQuantity(1L, DATE, 7L, 100L)).thenReturn(7);
+
+        deliveryStockService.registerLoadForOrder(orderWithItems(1L, 3));
+
+        assertEquals(10, stock.getQuantityLoaded());
+        verify(stockRepo, never()).save(any(DeliveryStock.class));
+        verify(loadRepo).save(any(OrderStockLoad.class));
     }
 
     @Test
@@ -204,6 +227,34 @@ class DeliveryStockServiceTest {
         deliveryStockService.revertLoadForOrder(100L);
 
         assertEquals(4, stock.getQuantityLoaded());
+    }
+
+    @Test
+    void revertingReservationOfExistingTruckStockKeepsPhysicalStockAvailable() {
+        OrderStockLoad load = load(3, true);
+        load.setLoadContribution(0);
+        DeliveryStock stock = new DeliveryStock();
+        stock.setQuantityLoaded(10);
+        stock.setQuantityReturned(3);
+        when(loadRepo.findByOrderIdAndRevertedAtIsNull(100L)).thenReturn(List.of(load));
+        when(stockRepo.findForUpdate(1L, 7L, DATE)).thenReturn(Optional.of(stock));
+
+        deliveryStockService.revertLoadForOrder(100L);
+
+        assertEquals(10, stock.getQuantityLoaded());
+        assertFalse(load.isActive());
+    }
+
+    @Test
+    void releasingReturnedOrderReservationKeepsItsPhysicalLoadInTheTruck() {
+        OrderStockLoad load = load(3, true);
+        when(loadRepo.findByOrderIdAndRevertedAtIsNull(100L)).thenReturn(List.of(load));
+
+        deliveryStockService.releaseReturnedOrderReservation(100L);
+
+        assertFalse(load.isActive());
+        verify(loadRepo).save(load);
+        verifyNoInteractions(stockRepo);
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.example.distribuidora.dtos.RoleResponse;
 import com.example.distribuidora.enums.LedgerEntryType;
 import com.example.distribuidora.enums.OrderPaymentMethod;
 import com.example.distribuidora.enums.OrderStatus;
+import com.example.distribuidora.enums.DeliveryAttemptStatus;
 import com.example.distribuidora.enums.ProductUnit;
 import com.example.distribuidora.enums.StockMovementType;
 import com.example.distribuidora.exceptions.BusinessRuleException;
@@ -14,6 +15,7 @@ import com.example.distribuidora.models.*;
 import com.example.distribuidora.repositories.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -39,6 +41,8 @@ class OrderReturnAndHistoryTest {
     private IProductRepository productRepo;
     @Mock
     private IOrderRepository orderRepo;
+    @Mock
+    private IOrderDeliveryAttemptRepository attemptRepo;
     @Mock
     private IOrderStockLoadRepository loadRepo;
     @Mock
@@ -104,6 +108,135 @@ class OrderReturnAndHistoryTest {
 
         assertThrows(BusinessRuleException.class,
                 () -> service.registerReturnForOrder(11L, new OrderReturnRequest(5L, 3, null)));
+    }
+
+    @Test
+    void failedDeliveryReturnsRemainingQuantityAndAssociatesMovementWithAttempt() {
+        DeliveryStockService service = new DeliveryStockService(
+                stockRepo, truckRepo, productRepo, orderRepo, loadRepo, movementRepo,
+                currentUserService, attemptRepo);
+        Product product = new Product();
+        product.setId(5L);
+        product.setName("Producto");
+        product.setUnit(ProductUnit.UNIT);
+        OrderItem item = new OrderItem();
+        item.setProduct(product);
+        item.setQuantity(3);
+        Order order = new Order();
+        order.setId(12L);
+        order.setTruckId(4L);
+        order.setStatus(OrderStatus.IN_ROUTE);
+        order.setDeliveryDate(LocalDate.of(2026, 11, 20));
+        order.setItems(List.of(item));
+        OrderDeliveryAttempt attempt = new OrderDeliveryAttempt();
+        attempt.setId(22L);
+        attempt.setOrder(order);
+        attempt.setStatus(DeliveryAttemptStatus.IN_PROGRESS);
+        attempt.setDeliveryDate(order.getDeliveryDate());
+        Truck truck = new Truck();
+        truck.setId(4L);
+
+        when(orderRepo.findById(12L)).thenReturn(Optional.of(order));
+        when(attemptRepo.findFirstByOrder_IdAndStatusOrderByAttemptNumberDesc(12L, DeliveryAttemptStatus.IN_PROGRESS))
+                .thenReturn(Optional.of(attempt));
+        when(movementRepo.sumQuantityByAttemptAndProductAndType(22L, 5L, StockMovementType.RETURN)).thenReturn(0);
+        when(stockRepo.findForUpdate(4L, 5L, order.getDeliveryDate())).thenReturn(Optional.empty());
+        when(truckRepo.findById(4L)).thenReturn(Optional.of(truck));
+        when(productRepo.findById(5L)).thenReturn(Optional.of(product));
+        when(movementRepo.save(any(TruckStockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.registerAllRemainingReturnsForFailedAttempt(order, attempt, "No me atendieron");
+
+        ArgumentCaptor<TruckStockMovement> movementCaptor = ArgumentCaptor.forClass(TruckStockMovement.class);
+        verify(movementRepo).save(movementCaptor.capture());
+        TruckStockMovement movement = movementCaptor.getValue();
+        assertEquals(StockMovementType.RETURN, movement.getMovementType());
+        assertEquals(3, movement.getQuantity());
+        assertEquals(attempt, movement.getDeliveryAttempt());
+        assertEquals("Intento de entrega fallido: No me atendieron", movement.getNotes());
+    }
+
+    @Test
+    void successfulRetryCalculatesDeliveryOnlyAgainstCurrentAttempt() {
+        DeliveryStockService service = new DeliveryStockService(
+                stockRepo, truckRepo, productRepo, orderRepo, loadRepo, movementRepo,
+                currentUserService, attemptRepo);
+        Product product = new Product();
+        product.setId(5L);
+        OrderItem item = new OrderItem();
+        item.setProduct(product);
+        item.setQuantity(3);
+        Order order = new Order();
+        order.setId(13L);
+        order.setTruckId(4L);
+        order.setDeliveryDate(LocalDate.of(2026, 11, 21));
+        order.setItems(List.of(item));
+        OrderDeliveryAttempt attempt = new OrderDeliveryAttempt();
+        attempt.setId(23L);
+        attempt.setOrder(order);
+        attempt.setDeliveryDate(order.getDeliveryDate());
+        Truck truck = new Truck();
+        truck.setId(4L);
+
+        when(truckRepo.findById(4L)).thenReturn(Optional.of(truck));
+        when(productRepo.findById(5L)).thenReturn(Optional.of(product));
+        when(movementRepo.sumQuantityByAttemptAndProductAndType(23L, 5L, StockMovementType.RETURN)).thenReturn(0);
+        when(movementRepo.sumQuantityByAttemptAndProductAndType(23L, 5L, StockMovementType.DELIVERY)).thenReturn(0);
+        when(movementRepo.save(any(TruckStockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.registerDeliveryForOrder(order, attempt);
+
+        ArgumentCaptor<TruckStockMovement> movementCaptor = ArgumentCaptor.forClass(TruckStockMovement.class);
+        verify(movementRepo).save(movementCaptor.capture());
+        assertEquals(StockMovementType.DELIVERY, movementCaptor.getValue().getMovementType());
+        assertEquals(3, movementCaptor.getValue().getQuantity());
+        assertEquals(attempt, movementCaptor.getValue().getDeliveryAttempt());
+        verify(movementRepo, never()).sumQuantityByOrderAndProductAndType(
+                13L, 5L, StockMovementType.RETURN);
+    }
+
+    @Test
+    void repeatedFailedRetryDoesNotCountSamePhysicalReturnTwice() {
+        DeliveryStockService service = new DeliveryStockService(
+                stockRepo, truckRepo, productRepo, orderRepo, loadRepo, movementRepo,
+                currentUserService, attemptRepo);
+        Product product = new Product();
+        product.setId(5L);
+        OrderItem item = new OrderItem();
+        item.setProduct(product);
+        item.setQuantity(3);
+        Order order = new Order();
+        order.setId(14L);
+        order.setTruckId(4L);
+        order.setStatus(OrderStatus.IN_ROUTE);
+        order.setDeliveryDate(LocalDate.of(2026, 11, 22));
+        order.setItems(List.of(item));
+        OrderDeliveryAttempt attempt = new OrderDeliveryAttempt();
+        attempt.setId(24L);
+        attempt.setOrder(order);
+        attempt.setStatus(DeliveryAttemptStatus.IN_PROGRESS);
+        attempt.setDeliveryDate(order.getDeliveryDate());
+        Truck truck = new Truck();
+        truck.setId(4L);
+        DeliveryStock stock = new DeliveryStock();
+        stock.setQuantityLoaded(3);
+        stock.setQuantityReturned(3);
+
+        when(orderRepo.findById(14L)).thenReturn(Optional.of(order));
+        when(attemptRepo.findFirstByOrder_IdAndStatusOrderByAttemptNumberDesc(14L, DeliveryAttemptStatus.IN_PROGRESS))
+                .thenReturn(Optional.of(attempt));
+        when(movementRepo.sumQuantityByAttemptAndProductAndType(24L, 5L, StockMovementType.RETURN)).thenReturn(0);
+        when(movementRepo.maxReturnedQuantityByOrderProductTruckAndDate(14L, 5L, 4L, order.getDeliveryDate()))
+                .thenReturn(3);
+        when(stockRepo.findForUpdate(4L, 5L, order.getDeliveryDate())).thenReturn(Optional.of(stock));
+        when(truckRepo.findById(4L)).thenReturn(Optional.of(truck));
+        when(productRepo.findById(5L)).thenReturn(Optional.of(product));
+        when(movementRepo.save(any(TruckStockMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.registerAllRemainingReturnsForFailedAttempt(order, attempt, "Sigue cerrado");
+
+        assertEquals(3, stock.getQuantityReturned());
+        verify(movementRepo).save(any(TruckStockMovement.class));
     }
 
     @Test

@@ -9,11 +9,13 @@ import com.example.distribuidora.dtos.TruckStockMovementResponse;
 import com.example.distribuidora.dtos.TruckStockSummaryItemResponse;
 import com.example.distribuidora.enums.OrderStatus;
 import com.example.distribuidora.enums.StockMovementType;
+import com.example.distribuidora.enums.DeliveryAttemptStatus;
 import com.example.distribuidora.exceptions.BusinessRuleException;
 import com.example.distribuidora.exceptions.DuplicateResourceException;
 import com.example.distribuidora.exceptions.EntityNotFoundException;
 import com.example.distribuidora.models.DeliveryStock;
 import com.example.distribuidora.models.Order;
+import com.example.distribuidora.models.OrderDeliveryAttempt;
 import com.example.distribuidora.models.OrderItem;
 import com.example.distribuidora.models.OrderStockLoad;
 import com.example.distribuidora.models.Product;
@@ -22,6 +24,7 @@ import com.example.distribuidora.models.TruckStockMovement;
 import com.example.distribuidora.models.User;
 import com.example.distribuidora.repositories.IDeliveryStockRepository;
 import com.example.distribuidora.repositories.IOrderRepository;
+import com.example.distribuidora.repositories.IOrderDeliveryAttemptRepository;
 import com.example.distribuidora.repositories.IOrderStockLoadRepository;
 import com.example.distribuidora.repositories.IProductRepository;
 import com.example.distribuidora.repositories.ITruckRepository;
@@ -45,6 +48,7 @@ public class DeliveryStockService {
     private final ITruckRepository truckRepo;
     private final IProductRepository productRepo;
     private final IOrderRepository orderRepo;
+    private final IOrderDeliveryAttemptRepository attemptRepo;
     private final IOrderStockLoadRepository loadRepo;
     private final ITruckStockMovementRepository movementRepo;
     private final CurrentUserService currentUserService;
@@ -56,11 +60,13 @@ public class DeliveryStockService {
                                 IOrderRepository orderRepo,
                                 IOrderStockLoadRepository loadRepo,
                                 ITruckStockMovementRepository movementRepo,
-                                CurrentUserService currentUserService) {
+                                CurrentUserService currentUserService,
+                                IOrderDeliveryAttemptRepository attemptRepo) {
         this.stockRepo = stockRepo;
         this.truckRepo = truckRepo;
         this.productRepo = productRepo;
         this.orderRepo = orderRepo;
+        this.attemptRepo = attemptRepo;
         this.loadRepo = loadRepo;
         this.movementRepo = movementRepo;
         this.currentUserService = currentUserService;
@@ -70,8 +76,18 @@ public class DeliveryStockService {
                                 ITruckRepository truckRepo,
                                 IProductRepository productRepo,
                                 IOrderRepository orderRepo,
+                                IOrderStockLoadRepository loadRepo,
+                                ITruckStockMovementRepository movementRepo,
+                                CurrentUserService currentUserService) {
+        this(stockRepo, truckRepo, productRepo, orderRepo, loadRepo, movementRepo, currentUserService, null);
+    }
+
+    public DeliveryStockService(IDeliveryStockRepository stockRepo,
+                                ITruckRepository truckRepo,
+                                IProductRepository productRepo,
+                                IOrderRepository orderRepo,
                                 IOrderStockLoadRepository loadRepo) {
-        this(stockRepo, truckRepo, productRepo, orderRepo, loadRepo, null, null);
+        this(stockRepo, truckRepo, productRepo, orderRepo, loadRepo, null, null, null);
     }
 
     @Transactional
@@ -228,6 +244,10 @@ public class DeliveryStockService {
 
         Order order = orderRepo.findById(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
+        OrderDeliveryAttempt attempt = findActiveAttempt(orderId);
+        if (attemptRepo != null && attempt == null) {
+            throw new BusinessRuleException("El pedido no tiene un intento de entrega en curso.");
+        }
 
         if (order.getTruckId() == null) {
             throw new BusinessRuleException(
@@ -248,8 +268,7 @@ public class DeliveryStockService {
                     "El producto " + request.productId() + " no forma parte del pedido " + order.getOrderCode() + ".");
         }
 
-        int alreadyReturned = movementRepo == null ? 0
-                : movementRepo.sumQuantityByOrderAndProductAndType(orderId, request.productId(), StockMovementType.RETURN);
+        int alreadyReturned = sumForAttemptOrOrder(orderId, attempt, request.productId(), StockMovementType.RETURN);
         int pendingQuantity = orderedQuantity - alreadyReturned;
 
         if (pendingQuantity <= 0) {
@@ -268,7 +287,15 @@ public class DeliveryStockService {
         Product product = productRepo.findById(request.productId())
                 .orElseThrow(() -> new EntityNotFoundException("Product", request.productId()));
 
-        LocalDate movementDate = order.getDeliveryDate() != null ? order.getDeliveryDate() : LocalDate.now();
+        LocalDate movementDate = attempt != null && attempt.getDeliveryDate() != null
+                ? attempt.getDeliveryDate()
+                : order.getDeliveryDate() != null ? order.getDeliveryDate() : LocalDate.now();
+
+        int maxPreviouslyReturned = movementRepo == null ? 0
+                : safeQuantity(movementRepo.maxReturnedQuantityByOrderProductTruckAndDate(
+                        orderId, product.getId(), truck.getId(), movementDate));
+        int attemptReturnedAfterRequest = alreadyReturned + request.quantity();
+        int newlyReturnedToTruck = Math.max(0, attemptReturnedAfterRequest - maxPreviouslyReturned);
 
         DeliveryStock stock = stockRepo.findForUpdate(truck.getId(), product.getId(), movementDate)
                 .orElseGet(() -> {
@@ -280,12 +307,7 @@ public class DeliveryStockService {
                     return created;
                 });
 
-        int newReturned = stock.getQuantityReturned() + request.quantity();
-        if (newReturned > stock.getQuantityLoaded()) {
-            throw new BusinessRuleException(
-                    "La devolución acumulada (" + newReturned
-                            + ") supera la cantidad cargada en el camión (" + stock.getQuantityLoaded() + ").");
-        }
+        int newReturned = Math.min(stock.getQuantityLoaded(), stock.getQuantityReturned() + newlyReturnedToTruck);
         stock.setQuantityReturned(newReturned);
         stockRepo.save(stock);
 
@@ -298,12 +320,39 @@ public class DeliveryStockService {
                 : null;
 
         TruckStockMovement savedMovement = recordMovement(
-                truck, product, order, StockMovementType.RETURN, request.quantity(), movementDate, notes, normalizedKey);
+                truck, product, order, attempt, StockMovementType.RETURN,
+                request.quantity(), movementDate, notes, normalizedKey);
         return new TruckStockMovementResponse(savedMovement);
     }
 
     @Transactional
+    public void registerAllRemainingReturnsForFailedAttempt(Order order,
+                                                             OrderDeliveryAttempt attempt,
+                                                             String reason) {
+        if (order.getTruckId() == null) {
+            throw new BusinessRuleException("No se puede cerrar el intento fallido: el pedido no tiene un camión asignado.");
+        }
+        for (Map.Entry<Long, Integer> entry : quantitiesByProduct(order).entrySet()) {
+            int alreadyReturned = sumForAttemptOrOrder(order.getId(), attempt, entry.getKey(), StockMovementType.RETURN);
+            int pending = entry.getValue() - alreadyReturned;
+            if (pending > 0) {
+                String notes = "Intento de entrega fallido: " + reason;
+                if (notes.length() > 255) {
+                    notes = notes.substring(0, 255);
+                }
+                registerReturnForOrder(order.getId(), new OrderReturnRequest(entry.getKey(), pending,
+                        notes));
+            }
+        }
+    }
+
+    @Transactional
     public void registerDeliveryForOrder(Order order) {
+        registerDeliveryForOrder(order, findActiveAttempt(order.getId()));
+    }
+
+    @Transactional
+    public void registerDeliveryForOrder(Order order, OrderDeliveryAttempt attempt) {
         if (order.getTruckId() == null || movementRepo == null) {
             return;
         }
@@ -314,13 +363,13 @@ public class DeliveryStockService {
         for (Map.Entry<Long, Integer> entry : quantitiesByProduct(order).entrySet()) {
             Long productId = entry.getKey();
             int ordered = entry.getValue();
-            int returned = movementRepo.sumQuantityByOrderAndProductAndType(order.getId(), productId, StockMovementType.RETURN);
-            int alreadyDelivered = movementRepo.sumQuantityByOrderAndProductAndType(order.getId(), productId, StockMovementType.DELIVERY);
+            int returned = sumForAttemptOrOrder(order.getId(), attempt, productId, StockMovementType.RETURN);
+            int alreadyDelivered = sumForAttemptOrOrder(order.getId(), attempt, productId, StockMovementType.DELIVERY);
             int netToDeliver = ordered - returned - alreadyDelivered;
             if (netToDeliver > 0) {
                 Product product = productRepo.findById(productId)
                         .orElseThrow(() -> new EntityNotFoundException("Product", productId));
-                recordMovement(truck, product, order, StockMovementType.DELIVERY, netToDeliver, date,
+                recordMovement(truck, product, order, attempt, StockMovementType.DELIVERY, netToDeliver, date,
                         "Entrega del pedido " + order.getOrderCode(), null);
             }
         }
@@ -433,17 +482,30 @@ public class DeliveryStockService {
                 created.setDeliveryDate(date);
                 return created;
             });
-            stock.setQuantityLoaded(stock.getQuantityLoaded() + quantity);
-            stockRepo.save(stock);
+
+            int delivered = movementRepo == null ? 0 : safeQuantity(
+                    movementRepo.sumQuantityByTruckProductDateAndType(
+                            truckId, productId, date, StockMovementType.DELIVERY));
+            int reservedByOtherOrders = safeQuantity(orderRepo.sumReservedQuantity(
+                    truckId, date, productId, order.getId()));
+            int availableOnTruck = Math.max(0, stock.getQuantityLoaded() - delivered - reservedByOtherOrders);
+            int newlyLoaded = Math.max(0, quantity - availableOnTruck);
+            if (newlyLoaded > 0) {
+                stock.setQuantityLoaded(stock.getQuantityLoaded() + newlyLoaded);
+                stockRepo.save(stock);
+            }
 
             load.setTruckId(truckId);
             load.setDeliveryDate(date);
             load.setQuantity(quantity);
+            load.setLoadContribution(newlyLoaded);
             load.setRevertedAt(null);
             loadRepo.save(load);
 
-            recordMovement(truck, product, order, StockMovementType.LOAD, quantity, date,
-                    "Carga asignada para pedido " + order.getOrderCode(), null);
+            if (newlyLoaded > 0) {
+                recordMovement(truck, product, order, StockMovementType.LOAD, newlyLoaded, date,
+                        "Carga asignada para pedido " + order.getOrderCode(), null);
+            }
         }
     }
 
@@ -455,14 +517,51 @@ public class DeliveryStockService {
     }
 
     @Transactional
+    public void releaseReturnedOrderReservation(Long orderId) {
+        for (OrderStockLoad load : loadRepo.findByOrderIdAndRevertedAtIsNull(orderId)) {
+            load.setRevertedAt(LocalDateTime.now());
+            loadRepo.save(load);
+        }
+    }
+
+    @Transactional
     public void syncLoadForOrder(Order order) {
         revertLoadForOrder(order.getId());
         registerLoadForOrder(order);
     }
 
+    private OrderDeliveryAttempt findActiveAttempt(Long orderId) {
+        if (attemptRepo == null) {
+            return null;
+        }
+        return attemptRepo.findFirstByOrder_IdAndStatusOrderByAttemptNumberDesc(
+                orderId, DeliveryAttemptStatus.IN_PROGRESS).orElse(null);
+    }
+
+    private int sumForAttemptOrOrder(Long orderId, OrderDeliveryAttempt attempt,
+                                     Long productId, StockMovementType movementType) {
+        if (movementRepo == null) {
+            return 0;
+        }
+        Integer quantity = attempt == null
+                ? movementRepo.sumQuantityByOrderAndProductAndType(orderId, productId, movementType)
+                : movementRepo.sumQuantityByAttemptAndProductAndType(attempt.getId(), productId, movementType);
+        return safeQuantity(quantity);
+    }
+
+    private int safeQuantity(Integer quantity) {
+        return quantity == null ? 0 : quantity;
+    }
+
     private void releaseFromTruck(OrderStockLoad load) {
         stockRepo.findForUpdate(load.getTruckId(), load.getProductId(), load.getDeliveryDate()).ifPresent(stock -> {
-            stock.setQuantityLoaded(Math.max(stock.getQuantityReturned(), stock.getQuantityLoaded() - load.getQuantity()));
+            int returnedFromOrder = movementRepo == null ? 0 : safeQuantity(
+                    movementRepo.sumQuantityByOrderTruckProductDateAndType(
+                            load.getOrderId(), load.getTruckId(), load.getProductId(), load.getDeliveryDate(),
+                            StockMovementType.RETURN));
+            int contributionToRelease = Math.max(0, load.getLoadContribution() - returnedFromOrder);
+            stock.setQuantityLoaded(Math.max(stock.getQuantityReturned(),
+                    stock.getQuantityLoaded() - contributionToRelease));
             stockRepo.save(stock);
         });
         load.setRevertedAt(LocalDateTime.now());
@@ -477,6 +576,18 @@ public class DeliveryStockService {
                                               LocalDate movementDate,
                                               String notes,
                                               String idempotencyKey) {
+        return recordMovement(truck, product, order, null, type, quantity, movementDate, notes, idempotencyKey);
+    }
+
+    private TruckStockMovement recordMovement(Truck truck,
+                                              Product product,
+                                              Order order,
+                                              OrderDeliveryAttempt attempt,
+                                              StockMovementType type,
+                                              int quantity,
+                                              LocalDate movementDate,
+                                              String notes,
+                                              String idempotencyKey) {
         if (movementRepo == null) {
             return null;
         }
@@ -484,6 +595,7 @@ public class DeliveryStockService {
         movement.setTruck(truck);
         movement.setProduct(product);
         movement.setDeliveryOrder(order);
+        movement.setDeliveryAttempt(attempt);
         movement.setMovementType(type);
         movement.setQuantity(quantity);
         movement.setMovementDate(movementDate);

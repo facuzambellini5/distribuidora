@@ -28,6 +28,64 @@ public interface ITruckStockMovementRepository extends JpaRepository<TruckStockM
                                                 @Param("movementType") StockMovementType movementType);
 
     @Query("""
+            select coalesce(sum(m.quantity), 0)
+            from TruckStockMovement m
+            where m.deliveryAttempt.id = :attemptId
+              and m.product.id = :productId
+              and m.movementType = :movementType
+            """)
+    Integer sumQuantityByAttemptAndProductAndType(@Param("attemptId") Long attemptId,
+                                                   @Param("productId") Long productId,
+                                                   @Param("movementType") StockMovementType movementType);
+
+    @Query(value = """
+            select coalesce(max(attempt_returns.returned_quantity), 0)
+            from (
+                select coalesce(m.delivery_attempt_id, 0) as attempt_id,
+                       sum(m.quantity) as returned_quantity
+                from truck_stock_movements m
+                where m.delivery_order_id = :orderId
+                  and m.product_id = :productId
+                  and m.truck_id = :truckId
+                  and m.movement_date = :movementDate
+                  and m.movement_type = 'RETURN'
+                group by coalesce(m.delivery_attempt_id, 0)
+            ) attempt_returns
+            """, nativeQuery = true)
+    Integer maxReturnedQuantityByOrderProductTruckAndDate(@Param("orderId") Long orderId,
+                                                           @Param("productId") Long productId,
+                                                           @Param("truckId") Long truckId,
+                                                           @Param("movementDate") LocalDate movementDate);
+
+    @Query("""
+            select coalesce(sum(m.quantity), 0)
+            from TruckStockMovement m
+            where m.truck.id = :truckId
+              and m.product.id = :productId
+              and m.movementDate = :movementDate
+              and m.movementType = :movementType
+            """)
+    Integer sumQuantityByTruckProductDateAndType(@Param("truckId") Long truckId,
+                                                 @Param("productId") Long productId,
+                                                 @Param("movementDate") LocalDate movementDate,
+                                                 @Param("movementType") StockMovementType movementType);
+
+    @Query("""
+            select coalesce(sum(m.quantity), 0)
+            from TruckStockMovement m
+            where m.deliveryOrder.id = :orderId
+              and m.truck.id = :truckId
+              and m.product.id = :productId
+              and m.movementDate = :movementDate
+              and m.movementType = :movementType
+            """)
+    Integer sumQuantityByOrderTruckProductDateAndType(@Param("orderId") Long orderId,
+                                                      @Param("truckId") Long truckId,
+                                                      @Param("productId") Long productId,
+                                                      @Param("movementDate") LocalDate movementDate,
+                                                      @Param("movementType") StockMovementType movementType);
+
+    @Query("""
             select m
             from TruckStockMovement m
             join fetch m.truck t
