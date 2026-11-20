@@ -1,0 +1,86 @@
+package com.example.distribuidora.repositories;
+
+import com.example.distribuidora.enums.OrderStatus;
+import com.example.distribuidora.enums.ProductUnit;
+import com.example.distribuidora.models.Address;
+import com.example.distribuidora.models.Customer;
+import com.example.distribuidora.models.Order;
+import com.example.distribuidora.models.Product;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+@DataJpaTest
+@Testcontainers(disabledWithoutDocker = true)
+class JpaMappingTest {
+
+    @Container
+    static final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4");
+
+    @DynamicPropertySource
+    static void mysqlProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", mysql::getJdbcUrl);
+        registry.add("spring.datasource.username", mysql::getUsername);
+        registry.add("spring.datasource.password", mysql::getPassword);
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
+    }
+
+    private final ICustomerRepository customerRepo;
+    private final IAddressRepository addressRepo;
+    private final IOrderRepository orderRepo;
+    private final IProductRepository productRepo;
+
+    JpaMappingTest(ICustomerRepository customerRepo,
+                   IAddressRepository addressRepo,
+                   IOrderRepository orderRepo,
+                   IProductRepository productRepo) {
+        this.customerRepo = customerRepo;
+        this.addressRepo = addressRepo;
+        this.orderRepo = orderRepo;
+        this.productRepo = productRepo;
+    }
+
+    @Test
+    void orderMappingMatchesFlywaySchema() {
+        Customer customer = new Customer();
+        customer.setBusinessName("Cafe Centro");
+        Customer savedCustomer = customerRepo.save(customer);
+
+        Address address = new Address();
+        address.setCustomer(savedCustomer);
+        address.setStreetAddress("San Martin 100");
+        Address savedAddress = addressRepo.save(address);
+
+        Order order = new Order();
+        order.setCustomer(savedCustomer);
+        order.setDeliveryAddress(savedAddress);
+        order.setDeliveryDate(LocalDate.of(2026, 10, 13));
+        order.setStatus(OrderStatus.PENDING);
+        order.setTotalAmount(new BigDecimal("10.00"));
+
+        Order saved = orderRepo.save(order);
+
+        assertEquals(OrderStatus.PENDING, saved.getStatus());
+    }
+
+    @Test
+    void productUnitMappingMatchesFlywaySchema() {
+        Product product = new Product();
+        product.setName("Aceite");
+        product.setUnitPrice(new BigDecimal("900.00"));
+        product.setUnit(ProductUnit.LITER);
+
+        Product saved = productRepo.saveAndFlush(product);
+
+        assertEquals(ProductUnit.LITER, saved.getUnit());
+    }
+}

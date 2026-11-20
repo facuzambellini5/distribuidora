@@ -1,0 +1,19 @@
+package com.example.distribuidora.repositories;
+
+import com.example.distribuidora.models.Product;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface IProductRepository extends JpaRepository<Product, Long> {
+
+    List<Product> findByIsActiveTrue();
+
+    List<Product> findByCategoryId(Long categoryId);
+
+    boolean existsBySku(String sku);
+
+    boolean existsBySkuAndIdNot(String sku, Long id);
+}
