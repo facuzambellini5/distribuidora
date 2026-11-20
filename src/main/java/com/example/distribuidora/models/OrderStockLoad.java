@@ -8,9 +8,10 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-// Carga de stock en un camion originada por un pedido (una fila por pedido y producto).
+// Reserva de stock en un camion originada por un pedido (una fila por pedido y producto).
 // La clave unica (delivery_order_id, product_id) garantiza que reintentos no dupliquen la carga.
-// revertedAt != null significa que la carga ya fue revertida.
+// loadContribution indica las unidades que se agregaron fisicamente al stock al crear la reserva.
+// revertedAt != null significa que la reserva ya fue liberada.
 @Entity
 @Table(name = "order_stock_loads")
 @Getter
@@ -36,6 +37,9 @@ public class OrderStockLoad {
 
     @Column(nullable = false)
     private int quantity;
+
+    @Column(name = "load_contribution", nullable = false)
+    private int loadContribution;
 
     @Column(name = "reverted_at")
     private LocalDateTime revertedAt;

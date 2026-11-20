@@ -3,11 +3,14 @@ package com.example.distribuidora.services;
 import com.example.distribuidora.dtos.OrderItemRequest;
 import com.example.distribuidora.dtos.OrderRequest;
 import com.example.distribuidora.dtos.OrderDeliveryRequest;
+import com.example.distribuidora.dtos.DeliveryAttemptResolutionRequest;
 import com.example.distribuidora.enums.OrderPaymentMethod;
 import com.example.distribuidora.enums.OrderStatus;
+import com.example.distribuidora.enums.DeliveryAttemptStatus;
 import com.example.distribuidora.exceptions.BusinessRuleException;
 import com.example.distribuidora.models.*;
 import com.example.distribuidora.repositories.IOrderRepository;
+import com.example.distribuidora.repositories.IOrderDeliveryAttemptRepository;
 import com.example.distribuidora.repositories.IUserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +37,8 @@ class OrderServiceTest {
 
     @Mock
     private IOrderRepository orderRepo;
+    @Mock
+    private IOrderDeliveryAttemptRepository attemptRepo;
     @Mock
     private CustomerService customerService;
     @Mock
@@ -102,8 +107,8 @@ class OrderServiceTest {
 
         orderService.markDelivered(5L);
 
-        // entregar no mueve stock: la carga se registro al asignar el pedido
-        verifyNoInteractions(deliveryStockService);
+        // La entrega queda asociada al intento actual; no se vuelven a cargar unidades aquí.
+        verify(deliveryStockService).registerDeliveryForOrder(order, null);
         verify(ledgerService).registerCharge(customer, order, new BigDecimal("42.00"));
         verify(ledgerService).registerOrderPayment(order, BigDecimal.ZERO);
         assertEquals(OrderPaymentMethod.CURRENT_ACCOUNT, order.getPaymentMethod());
@@ -203,7 +208,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void markInRouteDoesNotMoveStock() {
+    void markInRouteEnsuresTruckStockIsLoaded() {
         Order order = orderWithStatus(8L, OrderStatus.PENDING);
         when(orderRepo.findById(8L)).thenReturn(Optional.of(order));
         when(orderRepo.save(order)).thenReturn(order);
@@ -212,6 +217,65 @@ class OrderServiceTest {
 
         assertEquals(OrderStatus.IN_ROUTE, order.getStatus());
         verifyNoInteractions(deliveryStockService);
+    }
+
+    @Test
+    void markDeliveryAttemptFailedRecordsReasonReturnsStockAndLeavesOrderPending() {
+        Order order = orderWithStatus(81L, OrderStatus.IN_ROUTE);
+        order.setTruckId(4L);
+        OrderDeliveryAttempt attempt = new OrderDeliveryAttempt();
+        attempt.setId(91L);
+        attempt.setOrder(order);
+        attempt.setAttemptNumber(1);
+        attempt.setStatus(DeliveryAttemptStatus.IN_PROGRESS);
+
+        when(orderRepo.findById(81L)).thenReturn(Optional.of(order));
+        when(attemptRepo.findByIdempotencyKey("failed-81")).thenReturn(Optional.empty());
+        when(attemptRepo.findFirstByOrder_IdAndStatusOrderByAttemptNumberDesc(81L, DeliveryAttemptStatus.IN_PROGRESS))
+                .thenReturn(Optional.of(attempt));
+        when(attemptRepo.save(any(OrderDeliveryAttempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepo.save(order)).thenReturn(order);
+
+        var response = orderService.markDeliveryAttemptFailed(81L,
+                new DeliveryAttemptResolutionRequest("No me atendieron", "failed-81"));
+
+        assertEquals(OrderStatus.PENDING, order.getStatus());
+        assertEquals(DeliveryAttemptStatus.FAILED, attempt.getStatus());
+        assertEquals("No me atendieron", attempt.getReason());
+        assertEquals("failed-81", attempt.getIdempotencyKey());
+        assertEquals("No me atendieron", response.reason());
+        verify(deliveryStockService).registerAllRemainingReturnsForFailedAttempt(
+                order, attempt, "No me atendieron");
+        verify(deliveryStockService, never()).revertLoadForOrder(81L);
+    }
+
+    @Test
+    void markDeliveryAttemptReturnedClosesOrderAndReleasesStockForResale() {
+        Order order = orderWithStatus(82L, OrderStatus.IN_ROUTE);
+        order.setTruckId(4L);
+        OrderDeliveryAttempt attempt = new OrderDeliveryAttempt();
+        attempt.setId(92L);
+        attempt.setOrder(order);
+        attempt.setAttemptNumber(1);
+        attempt.setStatus(DeliveryAttemptStatus.IN_PROGRESS);
+
+        when(orderRepo.findById(82L)).thenReturn(Optional.of(order));
+        when(attemptRepo.findByIdempotencyKey("returned-82")).thenReturn(Optional.empty());
+        when(attemptRepo.findFirstByOrder_IdAndStatusOrderByAttemptNumberDesc(82L, DeliveryAttemptStatus.IN_PROGRESS))
+                .thenReturn(Optional.of(attempt));
+        when(attemptRepo.save(any(OrderDeliveryAttempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepo.save(order)).thenReturn(order);
+
+        var response = orderService.markDeliveryAttemptReturned(82L,
+                new DeliveryAttemptResolutionRequest("El cliente rechazó la mercadería", "returned-82"));
+
+        assertEquals(OrderStatus.RETURNED, order.getStatus());
+        assertEquals(DeliveryAttemptStatus.RETURNED, attempt.getStatus());
+        assertEquals("El cliente rechazó la mercadería", attempt.getReason());
+        assertEquals(DeliveryAttemptStatus.RETURNED, response.status());
+        verify(deliveryStockService).registerAllRemainingReturnsForFailedAttempt(
+                order, attempt, "El cliente rechazó la mercadería");
+        verify(deliveryStockService).releaseReturnedOrderReservation(82L);
     }
 
     @Test

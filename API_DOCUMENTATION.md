@@ -141,7 +141,8 @@
 ## 8. Pedidos, Entregas, Devoluciones, Comprobante PDF e Historiales
 
 ### Estados posibles de un pedido (`OrderStatus`)
-`PENDING` -> `IN_ROUTE` -> `DELIVERED` (o `CANCELLED` antes de entregar).
+`PENDING` -> `IN_ROUTE` -> `DELIVERED`, `PENDING` (intento fallido, para reprogramar) o
+`RETURNED` (el cliente rechazó la mercadería). `CANCELLED` es la cancelación administrativa antes de entregar.
 
 | Método | Ruta | Permiso | Descripción |
 |---|---|---|---|
@@ -150,6 +151,9 @@
 | `GET` | `/api/orders/{id}` | `orders:read` | Detalle de pedido con `orderCode`, `amountPaid` y `pendingBalance`. |
 | `PUT` | `/api/orders/{id}` | `orders:write` | Edita pedido `PENDING`. |
 | `PATCH` | `/api/orders/{id}/in-route` | `orders:deliver` | Cambia estado `PENDING` -> `IN_ROUTE`. |
+| `PATCH` | `/api/orders/{id}/delivery-attempts/failed` | `orders:deliver` | Registra un intento fallido con motivo; devuelve al camión las cantidades pendientes y deja el pedido `PENDING`. |
+| `PATCH` | `/api/orders/{id}/delivery-attempts/returned` | `orders:deliver` | El cliente rechazó la mercadería. Registra el motivo, libera la reserva del pedido y deja las unidades disponibles en el camión para asignarlas a otro pedido; estado final `RETURNED`. |
+| `GET` | `/api/orders/{id}/delivery-attempts` | `orders:read` | Consulta el historial de intentos, sus estados y motivos. |
 | `PATCH` | `/api/orders/{id}/delivered` | `orders:deliver` | Registra entrega y pago (total, parcial o cero en cuenta corriente). |
 | `POST` | `/api/orders/{id}/returns` | `stock:write` o `orders:deliver` | Registra devolución de mercadería no entregada al camión del pedido (`201`). |
 | `GET` | `/api/orders/{id}/receipt/pdf` | `orders:read` | Descarga comprobante PDF (`application/pdf`) del pedido entregado sin volver a cobrar. |
@@ -157,6 +161,9 @@
 | `GET` | `/api/orders/deliveries` | `orders:read` | Historial de repartos filtrable por `fromDate`, `toDate`, `customerId`, `truckId`, `driverId`, `status`. |
 | `PATCH` | `/api/orders/{id}/cancelled` | `orders:write` | Cancela pedido no entregado y revierte carga en camión. |
 | `DELETE` | `/api/orders/{id}` | `orders:write` | Cancela pedido (`204`). |
+
+Los endpoints de intento fallido y devuelto reciben `{"reason":"No me atendieron"}`; el motivo es obligatorio
+y admite hasta 255 caracteres. `idempotencyKey` es opcional.
 
 ### Entrega y pago (`PATCH /api/orders/{id}/delivered`)
 ```json
@@ -184,7 +191,7 @@
 ```
 - **Reglas de validación (`400 Bad Request`):**
   - El pedido **debe tener camión asignado** (si `truckId == null`, rechaza con error claro porque no existe stock central).
-  - El pedido no puede estar `CANCELLED` ni `DELIVERED`.
+  - El pedido no puede estar `CANCELLED`, `RETURNED` ni `DELIVERED`, y debe tener un intento en curso.
   - `quantity > 0` y `quantity <= cantidad pendiente` (`cantidad pedida - devoluciones acumuladas`).
   - No se permite superar lo cargado en el camión ni duplicar devoluciones (`idempotencyKey`).
   - Los movimientos son históricos e inmutables (nunca se sobrescriben ni borran).

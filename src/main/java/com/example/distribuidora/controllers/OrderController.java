@@ -1,6 +1,8 @@
 package com.example.distribuidora.controllers;
 
 import com.example.distribuidora.dtos.DeliveryHistoryItemResponse;
+import com.example.distribuidora.dtos.DeliveryAttemptResolutionRequest;
+import com.example.distribuidora.dtos.DeliveryAttemptResponse;
 import com.example.distribuidora.dtos.OrderDeliveryRequest;
 import com.example.distribuidora.dtos.OrderRequest;
 import com.example.distribuidora.dtos.OrderResponse;
@@ -126,6 +128,33 @@ public class OrderController {
     @PreAuthorize("hasAuthority('orders:deliver')")
     public ResponseEntity<OrderResponse> markInRoute(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.markInRoute(id));
+    }
+
+    @Operation(summary = "Registrar intento de entrega fallido",
+            description = "Requiere permiso orders:deliver. Guarda el motivo, devuelve al camión las cantidades no entregadas y deja el pedido pendiente para reprogramarlo.")
+    @PatchMapping("/{id}/delivery-attempts/failed")
+    @PreAuthorize("hasAuthority('orders:deliver')")
+    public ResponseEntity<DeliveryAttemptResponse> markDeliveryAttemptFailed(
+            @PathVariable Long id,
+            @Valid @RequestBody DeliveryAttemptResolutionRequest request) {
+        return ResponseEntity.ok(orderService.markDeliveryAttemptFailed(id, request));
+    }
+
+    @Operation(summary = "Registrar pedido devuelto por el cliente",
+            description = "Requiere permiso orders:deliver. Guarda el motivo, devuelve las unidades pendientes al stock disponible del camión y cierra el pedido como RETURNED.")
+    @PatchMapping("/{id}/delivery-attempts/returned")
+    @PreAuthorize("hasAuthority('orders:deliver')")
+    public ResponseEntity<DeliveryAttemptResponse> markDeliveryAttemptReturned(
+            @PathVariable Long id,
+            @Valid @RequestBody DeliveryAttemptResolutionRequest request) {
+        return ResponseEntity.ok(orderService.markDeliveryAttemptReturned(id, request));
+    }
+
+    @Operation(summary = "Consultar intentos de entrega de un pedido", description = "Requiere permiso orders:read.")
+    @GetMapping("/{id}/delivery-attempts")
+    @PreAuthorize("hasAuthority('orders:read')")
+    public ResponseEntity<List<DeliveryAttemptResponse>> deliveryAttempts(@PathVariable Long id) {
+        return ResponseEntity.ok(orderService.getDeliveryAttempts(id));
     }
 
     @Operation(summary = "Registrar entrega y pago de pedido",

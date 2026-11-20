@@ -111,7 +111,9 @@ public interface IOrderRepository extends JpaRepository<Order, Long> {
             where o.truckId = :truckId
               and o.deliveryDate = :deliveryDate
               and i.product.id = :productId
-              and o.status <> com.example.distribuidora.enums.OrderStatus.CANCELLED
+              and o.status not in (com.example.distribuidora.enums.OrderStatus.CANCELLED,
+                                   com.example.distribuidora.enums.OrderStatus.RETURNED,
+                                   com.example.distribuidora.enums.OrderStatus.DELIVERED)
               and (:excludedOrderId is null or o.id <> :excludedOrderId)
             """)
     Integer sumReservedQuantity(@Param("truckId") Long truckId,
